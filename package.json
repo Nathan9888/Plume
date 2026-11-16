@@ -1,0 +1,34 @@
+{
+  "name": "plume",
+  "productName": "Plume",
+  "version": "1.0.0",
+  "description": "Éditeur de documents local, inspiré de Google Docs",
+  "main": "main.js",
+  "author": "Plume",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --publish never"
+  },
+  "devDependencies": {
+    "electron": "^44.11.3",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "local.plume.editor",
+    "productName": "Plume",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["main.js", "preload.js", "renderer/**/*", "build/icon.png", "package.json"],
+    "win": { "target": "nsis", "icon": "build/icon.ico" },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Plume"
+    },
+    "fileAssociations": [
+      { "ext": "plume", "name": "Document Plume", "description": "Document Plume", "icon": "build/icon.ico" }
+    ]
+  }
+}

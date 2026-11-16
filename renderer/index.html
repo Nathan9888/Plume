@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; form-action 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Plume</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div class="brand">✒ Plume</div>
+    <input id="title" type="text" value="Sans titre" spellcheck="false" aria-label="Titre du document">
+    <span id="savestate">Prêt</span>
+    <div class="spacer"></div>
+    <button id="btn-author" title="Votre nom (utilisé pour les commentaires et suggestions)">👤 <span id="author-name">—</span></button>
+    <select id="mode" title="Mode d'édition" aria-label="Mode">
+      <option value="edit">✎ Édition</option>
+      <option value="suggest">✐ Suggestion</option>
+      <option value="view">👁 Lecture</option>
+    </select>
+    <button id="btn-pageless" title="Basculer entre pages et surface continue">▭ Sans pages</button>
+    <button id="btn-side" title="Panneau latéral (plan, commentaires, versions…)">☰ Panneau</button>
+  </header>
+
+  <div id="toolbar" role="toolbar" aria-label="Mise en forme">
+    <div class="grp">
+      <button data-cmd="undo" title="Annuler (Ctrl+Z)">↶</button>
+      <button data-cmd="redo" title="Rétablir (Ctrl+Y)">↷</button>
+    </div>
+    <div class="grp">
+      <select id="tb-block" title="Style de paragraphe">
+        <option value="p">Texte normal</option>
+        <option value="h1">Titre 1</option>
+        <option value="h2">Titre 2</option>
+        <option value="h3">Titre 3</option>
+        <option value="blockquote">Citation</option>
+      </select>
+      <select id="tb-font" title="Police">
+        <option>Calibri</option><option>Arial</option><option>Times New Roman</option>
+        <option>Georgia</option><option>Verdana</option><option>Segoe UI</option><option>Courier New</option>
+      </select>
+      <select id="tb-size" title="Taille (pt)">
+        <option>8</option><option>9</option><option>10</option><option selected>11</option><option>12</option>
+        <option>14</option><option>16</option><option>18</option><option>24</option><option>30</option>
+        <option>36</option><option>48</option><option>60</option><option>72</option>
+      </select>
+    </div>
+    <div class="grp">
+      <button data-cmd="bold" title="Gras (Ctrl+B)"><b>B</b></button>
+      <button data-cmd="italic" title="Italique (Ctrl+I)"><i>I</i></button>
+      <button data-cmd="underline" title="Souligné (Ctrl+U)"><u>U</u></button>
+      <button data-cmd="strikeThrough" title="Barré"><s>S</s></button>
+      <label class="colorbtn" title="Couleur du texte"><span id="ico-color">A</span><input type="color" id="tb-color" value="#d93025"></label>
+      <label class="colorbtn" title="Surlignage"><span id="ico-hilite">ab</span><input type="color" id="tb-hilite" value="#fff475"></label>
+    </div>
+    <div class="grp">
+      <button data-cmd="justifyLeft" title="Aligner à gauche">⬅</button>
+      <button data-cmd="justifyCenter" title="Centrer">↔</button>
+      <button data-cmd="justifyRight" title="Aligner à droite">➡</button>
+      <button data-cmd="justifyFull" title="Justifier">☰</button>
+    </div>
+    <div class="grp">
+      <button data-cmd="insertUnorderedList" title="Liste à puces">• Liste</button>
+      <button data-cmd="insertOrderedList" title="Liste numérotée">1. Liste</button>
+      <button data-act="checklist" title="Liste de tâches">☑ Tâches</button>
+      <button data-cmd="outdent" title="Diminuer le retrait">⇤</button>
+      <button data-cmd="indent" title="Augmenter le retrait">⇥</button>
+    </div>
+    <div class="grp">
+      <button data-act="at" title="Insérer une puce intelligente ou un bloc (ou tapez @)"><b>@</b> Insérer</button>
+      <button data-act="link" title="Lien (Ctrl+K)">🔗 Lien</button>
+      <button data-act="image" title="Image">🖼 Image</button>
+      <button data-act="table" title="Tableau">▦ Tableau</button>
+      <button data-act="hr" title="Ligne horizontale">― Ligne</button>
+      <button data-act="pagebreak" title="Saut de page">⤓ Saut</button>
+    </div>
+    <div class="grp">
+      <button data-act="comment" title="Commenter la sélection (Ctrl+Alt+M)">💬 Commenter</button>
+      <button data-act="find" title="Rechercher / remplacer (Ctrl+F)">🔍</button>
+      <button data-act="dlp" title="Vérifier les données sensibles">🛡</button>
+      <button data-cmd="removeFormat" title="Effacer la mise en forme">⌫ Format</button>
+    </div>
+    <div class="grp" id="tablebar" hidden>
+      <span class="grp-label">Tableau :</span>
+      <button data-tbl="addRow" title="Ajouter une ligne sous la ligne courante">＋ ligne</button>
+      <button data-tbl="addCol" title="Ajouter une colonne à droite">＋ colonne</button>
+      <button data-tbl="delRow" title="Supprimer la ligne">－ ligne</button>
+      <button data-tbl="delCol" title="Supprimer la colonne">－ colonne</button>
+      <button data-tbl="delTable" title="Supprimer le tableau">✕</button>
+    </div>
+  </div>
+
+  <div id="workspace">
+    <div id="scroller">
+      <div id="page" class="sheet" contenteditable="true" spellcheck="true" lang="fr"><p><br></p></div>
+    </div>
+    <aside id="side" hidden>
+      <nav id="sidetabs">
+        <button data-tab="outline">Plan</button>
+        <button data-tab="comments">Commentaires</button>
+        <button data-tab="suggestions">Suggestions</button>
+        <button data-tab="versions">Versions</button>
+        <button data-tab="variables">Variables</button>
+      </nav>
+      <div id="sidebody"></div>
+    </aside>
+  </div>
+
+  <footer id="status">
+    <span id="st-count">0 mot</span>
+    <span id="st-pages"></span>
+    <span id="st-lock"></span>
+    <span class="spacer"></span>
+    <span id="st-mode"></span>
+  </footer>
+</div>
+
+<div id="findbar" hidden>
+  <input id="find-q" type="text" placeholder="Rechercher" spellcheck="false">
+  <input id="find-r" type="text" placeholder="Remplacer par" spellcheck="false">
+  <button id="find-prev" title="Précédent">▲</button>
+  <button id="find-next" title="Suivant">▼</button>
+  <button id="find-rep">Remplacer</button>
+  <button id="find-all">Tout remplacer</button>
+  <span id="find-count"></span>
+  <button id="find-close" title="Fermer">✕</button>
+</div>
+<div id="atmenu" hidden role="listbox"></div>
+<div id="tip" hidden></div>
+<div id="toast" hidden></div>
+
+<script src="ui.js"></script>
+<script src="docx.js"></script>
+<script src="editor.js"></script>
+<script src="review.js"></script>
+<script src="store.js"></script>
+<script src="panels.js"></script>
+<script src="dlp.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
