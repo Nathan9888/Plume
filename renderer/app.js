@@ -1,9 +1,11 @@
-/* Plume — application : fichiers, modes, panneaux, exports, protection par mot de passe, récupération. */
+/* Plume — application : onglets de documents, fichiers, modes, panneaux, exports, mot de passe, récupération. */
 (function () {
   'use strict';
   const { $, $$, h, esc } = P;
   const ed = P.editor;
   const state = P.state;
+  const scroller = $('#scroller');
+  const cfg = () => P.settings;
 
   const fmtDate = (iso) => {
     const d = new Date(iso);
@@ -11,13 +13,16 @@
   };
   const fileTitle = (p) => String(p || '').replace(/^.*[\\/]/, '').replace(/\.[^.]+$/, '');
   const safeName = () => (state.title || 'Sans titre').replace(/[\\/:*?"<>|]/g, '_');
+  const samePath = (a, b) => !!a && !!b && String(a).replace(/\//g, '\\').toLowerCase() === String(b).replace(/\//g, '\\').toLowerCase();
+
+  const app = (P.app = { info: {} });
 
   /* ---------- Auteur ---------- */
   const loadAuthor = () => { try { return localStorage.getItem('plume.author') || ''; } catch (_) { return ''; } };
   function setAuthor(name) {
     state.author = name;
     try { localStorage.setItem('plume.author', name); } catch (_) { /* ignoré */ }
-    $('#author-name').textContent = name || '—';
+    P.paintAvatars();
   }
   async function askAuthor(first) {
     const r = await P.modal({
@@ -29,16 +34,178 @@
     if (r && r.values.name.trim()) setAuthor(r.values.name.trim().slice(0, 60));
     else if (first && !state.author) setAuthor('Moi');
   }
-  $('#btn-author').addEventListener('click', () => askAuthor(false));
+  app.setAuthor = setAuthor;
+  app.askAuthor = askAuthor;
 
-  /* ---------- Barre de titre, état ---------- */
+  /* ---------- Onglets : un onglet « Accueil » fixe + un onglet par document ---------- */
+  const DOC_KEYS = ['path', 'title', 'dirty', 'password', 'pageless', 'mode', 'variables', 'comments', 'versions', 'assets'];
+  const tabs = [];            // { id, st: état du document, html, scroll }
+  let activeId = 'home';
+
+  const blankDoc = () => ({ path: null, title: 'Sans titre', dirty: false, password: null, pageless: false, mode: 'edit', variables: {}, comments: [], versions: [], assets: {} });
+  const tabById = (id) => tabs.find((t) => t.id === id) || null;
+  const current = () => tabById(activeId);
+  const src = (t) => (t.id === activeId ? state : t.st);       // l'onglet actif vit dans l'état « vivant »
+  const inDoc = () => activeId !== 'home' && !!current();
+  app.inDoc = inDoc;
+
+  function captureActive() {
+    const t = current();
+    if (!t) return;
+    for (const k of DOC_KEYS) t.st[k] = state[k];
+    t.html = ed.innerHTML;
+    t.scroll = scroller.scrollTop;
+  }
+
+  function showView(v) {
+    $('#home').hidden = v !== 'home';
+    $('#docview').hidden = v !== 'doc';
+    document.body.dataset.view = v;
+  }
+
+  function loadTab(t) {
+    for (const k of DOC_KEYS) state[k] = t.st[k];
+    P.resetSel();
+    ed.innerHTML = t.html;
+    $('#title').value = state.title;
+    $('#findbar').hidden = true;
+    setPageless(state.pageless);
+    setMode(state.mode);
+    refreshChrome();
+    P.renderPanel();
+    renderOutline();
+    scroller.scrollTop = t.scroll || 0;
+    P.updateCounts();
+  }
+
+  function tabTitle(t) { return src(t).title || 'Sans titre'; }
+
+  function tabEl(t) {
+    const s = src(t);
+    const el = h('div', { class: 'tab' + (t.id === activeId ? ' active' : ''), role: 'tab', tabindex: '0', 'aria-selected': String(t.id === activeId),
+      title: tabTitle(t) + (s.path ? '\n' + s.path : ''),
+      onclick: () => activate(t.id),
+      onauxclick: (e) => { if (e.button === 1) { e.preventDefault(); closeTab(t.id); } },
+      onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(t.id); } },
+    },
+    P.svgIcon(s.password ? 'i-lock' : 'i-doc', 'sm'),
+    h('span', { class: 'tab-title', text: tabTitle(t) }),
+    s.dirty ? h('span', { class: 'tab-dot', title: 'Modifications non enregistrées' }) : null,
+    h('button', { type: 'button', class: 'tab-x', title: 'Fermer l’onglet (Ctrl+W)', 'aria-label': 'Fermer l’onglet', tabindex: '-1',
+      onclick: (e) => { e.stopPropagation(); closeTab(t.id); } }, P.svgIcon('i-close')));
+    el.dataset.id = t.id;
+    el.firstChild.setAttribute('class', 'ic sm tab-ic');
+    return el;
+  }
+
+  function renderTabs() {
+    const box = $('#tabs');
+    $$('.tab[data-id]', box).forEach((n) => n.remove());
+    const home = $('#tab-home');
+    home.classList.toggle('active', activeId === 'home');
+    home.setAttribute('aria-selected', String(activeId === 'home'));
+    tabs.forEach((t) => box.append(tabEl(t)));
+    const act = $('.tab.active', box);
+    if (act && act.scrollIntoView) act.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+
+  function patchTab() {
+    const t = current();
+    if (!t) return;
+    const old = $(`.tab[data-id="${CSS.escape(t.id)}"]`);
+    if (old) old.replaceWith(tabEl(t));
+  }
+
+  function activate(id) {
+    if (id === activeId) return;
+    P.pop.close();
+    captureActive();
+    if (id !== 'home' && !tabById(id)) id = 'home';
+    activeId = id;
+    if (id === 'home') {
+      showView('home');
+      document.title = 'Plume';
+      renderTabs();
+      if (P.home) P.home.refresh();
+      return;
+    }
+    loadTab(tabById(id));
+    showView('doc');
+    renderTabs();
+    ed.focus();
+  }
+  app.activate = activate;
+  app.goHome = () => activate('home');
+
+  /** Crée un onglet vide, le rend actif, puis appelle init() qui charge le contenu dans l'éditeur. */
+  function openTab(init) {
+    captureActive();
+    const prevId = activeId;
+    const t = { id: P.uid(), st: blankDoc(), html: '<p><br></p>', scroll: 0 };
+    tabs.push(t);
+    activeId = t.id;
+    loadTab(t);
+    showView('doc');
+    try {
+      init();
+    } catch (err) {
+      tabs.splice(tabs.indexOf(t), 1);
+      activeId = prevId;
+      const prev = tabById(prevId);
+      if (prev) { loadTab(prev); showView('doc'); } else showView('home');
+      renderTabs();
+      P.toast('Impossible d’ouvrir ce fichier : ' + (err && err.message ? err.message : err), 6000);
+      return null;
+    }
+    renderTabs();
+    ed.focus();
+    return t;
+  }
+
+  function cycle(dir) {
+    const order = ['home'].concat(tabs.map((t) => t.id));
+    const i = order.indexOf(activeId);
+    activate(order[(i + dir + order.length) % order.length]);
+  }
+
+  const anyDirty = () => { captureActive(); return tabs.some((t) => t.st.dirty); };
+
+  async function closeTab(id) {
+    const t = tabById(id);
+    if (!t) return false;
+    if (src(t).dirty) {
+      if (id !== activeId) activate(id);
+      if (!(await confirmDiscard())) return false;
+    }
+    const i = tabs.findIndex((x) => x.id === id);
+    if (i < 0) return true;
+    const wasActive = id === activeId;
+    tabs.splice(i, 1);
+    if (wasActive) {
+      activeId = '__closed__';
+      const next = tabs[i] || tabs[i - 1];
+      activate(next ? next.id : 'home');
+    } else renderTabs();
+    syncRecovery(true);
+    return true;
+  }
+  app.closeTab = closeTab;
+  app.closeActive = () => (inDoc() ? closeTab(activeId) : false);
+
+  $('#tab-home').addEventListener('click', () => activate('home'));
+  $('#tab-new').addEventListener('click', () => newDoc());
+  $('#doc-logo').addEventListener('click', () => activate('home'));
+
+  /* ---------- Barre de titre du document, état ---------- */
   let rev = 0;
   function refreshChrome() {
+    if (!inDoc()) { document.title = 'Plume'; return; }
     const t = state.title || 'Sans titre';
     document.title = (state.dirty ? '• ' : '') + t + ' — Plume';
     $('#savestate').textContent = state.dirty ? 'Modifications non enregistrées' : state.path ? 'Enregistré' : 'Nouveau document';
     $('#st-lock').textContent = state.password ? '🔒 Chiffré' : '';
     $('#st-lock').title = state.password ? 'Document chiffré (AES-256). Pas de récupération automatique pour un document chiffré.' : '';
+    patchTab();
   }
 
   let panelTimer = null;
@@ -47,6 +214,7 @@
     refreshChrome();
     clearTimeout(panelTimer);
     panelTimer = setTimeout(() => {
+      renderOutline();
       const ae = document.activeElement;
       if (ae && ae.closest && ae.closest('#sidebody')) return;   // ne pas voler le focus d'un champ du panneau
       P.renderPanel();
@@ -57,36 +225,57 @@
   $('#title').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); ed.focus(); } });
 
   /* ---------- Modes ---------- */
-  const MODE_LABEL = {
-    edit: 'Édition',
-    suggest: 'Suggestion : vos modifications sont proposées, pas appliquées',
-    view: 'Lecture seule',
+  const MODES = {
+    edit: { label: 'Édition', icon: 'i-edit', desc: 'Modifier le document directement', status: 'Édition' },
+    suggest: { label: 'Suggestion', icon: 'i-suggest', desc: 'Vos modifications sont proposées, pas appliquées', status: 'Suggestion : vos modifications sont proposées, pas appliquées' },
+    view: { label: 'Lecture', icon: 'i-eye', desc: 'Lecture seule, sans modification possible', status: 'Lecture seule' },
   };
+  app.MODES = MODES;
   function setMode(m) {
+    if (!MODES[m]) m = 'edit';
     state.mode = m;
-    $('#mode').value = m;
     ed.contentEditable = m === 'view' ? 'false' : 'true';
     document.body.dataset.mode = m;
-    $('#st-mode').textContent = MODE_LABEL[m];
+    $('#st-mode').textContent = MODES[m].status;
+    $('#mode-label').textContent = MODES[m].label;
+    $('#mode-ic use').setAttribute('href', '#' + MODES[m].icon);
     P.renderPanel();
   }
-  $('#mode').addEventListener('change', (e) => setMode(e.target.value));
+  app.setMode = setMode;
+
+  $('#modebtn').addEventListener('click', (e) => {
+    const btn = e.currentTarget;
+    if (P.pop.isOpen() && P.pop.anchor() === btn) { P.pop.close(); return; }
+    P.menu.open(Object.keys(MODES).map((k) => ({
+      label: MODES[k].label, desc: MODES[k].desc, icon: MODES[k].icon, checked: () => state.mode === k, action: () => setMode(k),
+    })), { anchor: btn, align: 'right' });
+  });
 
   function setPageless(on) {
     state.pageless = !!on;
     document.body.classList.toggle('pageless', !!on);
-    $('#btn-pageless').textContent = on ? '▯ Pages' : '▭ Sans pages';
     P.updateCounts();
   }
-  $('#btn-pageless').addEventListener('click', () => { setPageless(!state.pageless); P.markDirty(); });
+  app.setPageless = (on) => { setPageless(on); P.markDirty(); };
+  app.togglePageless = () => app.setPageless(!state.pageless);
 
-  /* ---------- Panneau latéral ---------- */
-  let tab = 'outline';
+  /* ---------- Plan (à gauche) et panneau latéral (à droite) ---------- */
+  const outline = $('#outline');
+  function renderOutline() {
+    if (outline.hidden) return;
+    const body = $('#outline-body');
+    body.replaceChildren();
+    P.panels.outline(body);
+  }
+  app.syncOutline = () => { outline.hidden = !cfg().get('outline'); renderOutline(); };
+  $('#outline-close').addEventListener('click', () => cfg().set('outline', false));
+
+  let tab = 'comments';
   const side = $('#side');
   P.showPanel = (name) => { if (name) tab = name; side.hidden = false; P.renderPanel(); };
   P.renderPanel = () => {
     if (side.hidden) return;
-    $$('#sidetabs button').forEach((b) => {
+    $$('#sidetabs button[data-tab]').forEach((b) => {
       b.classList.toggle('on', b.dataset.tab === tab);
       if (!b.dataset.label) b.dataset.label = b.textContent;
       let n = 0;
@@ -99,21 +288,64 @@
     const fn = P.panels[tab];
     if (fn) fn(body);
   };
-  $('#btn-side').addEventListener('click', () => { if (side.hidden) P.showPanel(); else side.hidden = true; });
+  const togglePanel = (name) => { if (!side.hidden && tab === name) side.hidden = true; else P.showPanel(name); };
+  app.togglePanel = togglePanel;
+  $('#btn-history').addEventListener('click', () => togglePanel('versions'));
+  $('#btn-comments').addEventListener('click', () => togglePanel('comments'));
+  $('#side-close').addEventListener('click', () => { side.hidden = true; });
   $('#sidetabs').addEventListener('click', (e) => { const b = e.target.closest('button[data-tab]'); if (b) P.showPanel(b.dataset.tab); });
 
+  /* ---------- Zoom de la page ---------- */
+  const ZOOMS = [50, 75, 90, 100, 125, 150, 200];
+  app.zoomStep = (dir) => {
+    const cur = cfg().get('pageZoom');
+    const i = dir === 0 ? ZOOMS.indexOf(100) : Math.max(0, Math.min(ZOOMS.length - 1, ZOOMS.indexOf(cur) + dir));
+    cfg().set('pageZoom', ZOOMS[i]);
+  };
+  $('#tb-zoom').addEventListener('change', (e) => cfg().set('pageZoom', parseInt(e.target.value, 10)));
+
+  /* ---------- Barre d'outils : « plus d'outils » quand la fenêtre est étroite ---------- */
+  (function toolbarOverflow() {
+    const tbar = $('#toolbar'), tools = $('#tb-tools'), more = $('#tb-more'), modebtn = $('#modebtn');
+    const check = () => {
+      if (tbar.classList.contains('expanded')) return;
+      // largeur naturelle des groupes (ils ne rétrécissent pas), indépendante de la place disponible
+      const vis = Array.from(tools.children).filter((c) => c.offsetWidth > 0);
+      const gap = parseFloat(getComputedStyle(tools).columnGap) || 0;
+      const need = vis.reduce((sum, c) => sum + c.offsetWidth, 0) + gap * Math.max(0, vis.length - 1);
+      const avail = tbar.clientWidth - modebtn.offsetWidth - more.offsetWidth - 40;
+      more.hidden = need <= avail;
+    };
+    const later = () => { check(); requestAnimationFrame(check); };
+    more.addEventListener('click', () => {
+      const on = tbar.classList.toggle('expanded');
+      more.setAttribute('aria-expanded', String(on));
+      if (!on) check();
+    });
+    if (window.ResizeObserver) { const ro = new ResizeObserver(later); ro.observe(tbar); }
+    window.addEventListener('resize', later);
+  })();
+
+  /* ---------- Documents récents ---------- */
+  const previewText = () => (ed.innerText || ed.textContent || '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim().slice(0, 700);
+  async function addRecent() {
+    if (!state.path) return;
+    try { await native.recents.add({ path: state.path, title: state.title, preview: previewText(), encrypted: !!state.password }); } catch (_) { /* ignoré */ }
+  }
+
   /* ---------- Chargement ---------- */
-  function afterLoad(opts) {
-    state.path = opts.path || null;
-    state.password = opts.password || null;
-    state.dirty = !!opts.dirty;
+  function afterLoad(o) {
+    state.path = o.path || null;
+    state.password = o.password || null;
+    state.dirty = !!o.dirty;
     $('#title').value = state.title;
     setPageless(state.pageless);
-    setMode('edit');
+    setMode(o.mode || 'edit');
     refreshChrome();
     P.renderPanel();
-    $('#scroller').scrollTop = 0;
-    if (!opts.dirty) { try { native.recovery.clear(); } catch (_) { /* ignoré */ } }
+    renderOutline();
+    scroller.scrollTop = 0;
+    if (state.path && !state.dirty) addRecent();
   }
 
   function blankState() {
@@ -125,56 +357,107 @@
     state.pageless = false;
   }
 
-  async function loadFile(f) {
-    if (!f) return false;
-    if (f.error) { P.toast(f.error, 5000); return false; }
-    try {
-      if (f.kind === 'plume') {
-        let text = f.text;
-        let password = null;
-        if (f.encrypted) {
-          for (;;) {
-            const r = await P.modal({
-              title: 'Document protégé',
-              message: 'Entrez le mot de passe pour ouvrir « ' + fileTitle(f.path) + ' ».',
-              fields: [{ id: 'pw', label: 'Mot de passe', type: 'password' }],
-              ok: 'Ouvrir',
-            });
-            if (!r) return false;
-            const d = await native.decrypt(f.b64, r.values.pw);
-            if (d.error) { P.toast(d.error); continue; }
-            text = d.text;
-            password = r.values.pw;
-            break;
-          }
+  /** Lit un fichier (déchiffre si besoin). Retourne null si l'utilisateur annule. */
+  async function prepare(f) {
+    if (f.kind === 'plume') {
+      let text = f.text;
+      let password = null;
+      if (f.encrypted) {
+        for (;;) {
+          const r = await P.modal({
+            title: 'Document protégé',
+            message: 'Entrez le mot de passe pour ouvrir « ' + fileTitle(f.path) + ' ».',
+            fields: [{ id: 'pw', label: 'Mot de passe', type: 'password' }],
+            ok: 'Ouvrir',
+          });
+          if (!r) return null;
+          const d = await native.decrypt(f.b64, r.values.pw);
+          if (d.error) { P.toast(d.error); continue; }
+          text = d.text;
+          password = r.values.pw;
+          break;
         }
-        P.loadData(JSON.parse(text));
-        if (state.title === 'Sans titre' && f.path) state.title = fileTitle(f.path);
-        afterLoad({ path: f.path, password });
-      } else if (f.kind === 'html') {
-        const doc = new DOMParser().parseFromString(f.text, 'text/html');
-        blankState();
-        state.title = (doc.title || '').trim() || fileTitle(f.path) || 'Sans titre';
-        ed.innerHTML = P.sanitize(doc.body ? doc.body.innerHTML : '', { pasted: true }) || '<p><br></p>';
-        P.refreshVars();
-        P.updateCounts();
-        afterLoad({ path: null, dirty: true });
-      } else {
-        blankState();
-        state.title = fileTitle(f.path) || 'Sans titre';
-        ed.innerHTML = String(f.text).replace(/\r\n?/g, '\n').split('\n').map((l) => '<p>' + (l ? esc(l) : '<br>') + '</p>').join('');
-        P.updateCounts();
-        afterLoad({ path: null, dirty: true });
       }
-      return true;
-    } catch (err) {
-      P.toast('Impossible d’ouvrir ce fichier : ' + (err && err.message ? err.message : err), 6000);
-      return false;
+      return { kind: 'plume', data: JSON.parse(text), password, path: f.path };
+    }
+    return { kind: f.kind === 'html' ? 'html' : 'text', text: f.text, path: f.path };
+  }
+
+  function applyPrepared(p) {
+    const mode = cfg().get('openMode');
+    if (p.kind === 'plume') {
+      P.loadData(p.data);
+      if (state.title === 'Sans titre' && p.path) state.title = fileTitle(p.path);
+      afterLoad({ path: p.path, password: p.password, mode });
+    } else if (p.kind === 'html') {
+      const doc = new DOMParser().parseFromString(p.text, 'text/html');
+      blankState();
+      state.title = (doc.title || '').trim() || fileTitle(p.path) || 'Sans titre';
+      ed.innerHTML = P.sanitize(doc.body ? doc.body.innerHTML : '', { pasted: true }) || '<p><br></p>';
+      P.refreshVars();
+      P.updateCounts();
+      afterLoad({ path: null, dirty: true, mode });
+    } else {
+      blankState();
+      state.title = fileTitle(p.path) || 'Sans titre';
+      ed.innerHTML = String(p.text).replace(/\r\n?/g, '\n').split('\n').map((l) => '<p>' + (l ? esc(l) : '<br>') + '</p>').join('');
+      P.updateCounts();
+      afterLoad({ path: null, dirty: true, mode });
     }
   }
 
+  /** Ouvre un fichier dans un nouvel onglet (ou active l'onglet où il est déjà ouvert). */
+  async function openFile(f) {
+    if (!f) return false;
+    if (f.error) { P.toast(f.error, 5000); return false; }
+    const existing = f.path && tabs.find((t) => samePath(src(t).path, f.path));
+    if (existing) { activate(existing.id); return true; }
+    let prepared;
+    try { prepared = await prepare(f); } catch (err) { P.toast('Impossible d’ouvrir ce fichier : ' + (err && err.message ? err.message : err), 6000); return false; }
+    if (!prepared) return false;
+    return !!openTab(() => applyPrepared(prepared));
+  }
+  app.openFile = openFile;
+
+  async function openRecent(p) {
+    const existing = tabs.find((t) => samePath(src(t).path, p));
+    if (existing) { activate(existing.id); return true; }
+    let f;
+    try { f = await native.recents.open(p); } catch (err) { P.toast('Impossible d’ouvrir ce document.', 5000); return false; }
+    if (!f || f.error) {
+      P.toast((f && f.error) || 'Impossible d’ouvrir ce document.', 5000);
+      if (P.home) P.home.refresh();
+      return false;
+    }
+    return openFile(f);
+  }
+  app.openRecent = openRecent;
+
+  /** Nouveau document (vierge ou à partir d'un modèle) dans un nouvel onglet. */
+  function newFromTemplate(tpl) {
+    tpl = tpl || P.templates[0];
+    return openTab(() => {
+      ed.innerHTML = P.sanitize(tpl.html()) || '<p><br></p>';
+      if (P.fixChecklists) P.fixChecklists();
+      P.refreshVars();
+      state.title = tpl.docTitle || 'Sans titre';
+      afterLoad({ path: null });
+      P.updateCounts();
+    });
+  }
+  app.newFromTemplate = newFromTemplate;
+  const newDoc = () => newFromTemplate(P.templates[0]);
+  app.newDoc = newDoc;
+
+  async function openDoc() {
+    const f = await native.open();
+    if (f) await openFile(f);
+  }
+  app.openDoc = openDoc;
+
   /* ---------- Enregistrement ---------- */
   async function save(saveAs) {
+    if (!inDoc()) return false;
     P.snapshot(null, true);
     const res = await native.save({
       path: state.path, content: JSON.stringify(P.serialize()), password: state.password || '',
@@ -184,12 +467,15 @@
     if (res.error) { P.toast('Échec de l’enregistrement : ' + res.error, 6000); return false; }
     state.path = res.path;
     state.dirty = false;
-    try { await native.recovery.clear(); } catch (_) { /* ignoré */ }
     refreshChrome();
     P.renderPanel();
     P.toast('Enregistré');
+    addRecent();
+    syncRecovery(true);
     return true;
   }
+  app.save = save;
+  $('#btn-save').addEventListener('click', () => save(false));
 
   async function confirmDiscard() {
     if (!state.dirty) return true;
@@ -203,21 +489,6 @@
     return true;
   }
 
-  async function newDoc() {
-    if (!(await confirmDiscard())) return;
-    blankState();
-    ed.innerHTML = '<p><br></p>';
-    P.refreshVars();
-    P.updateCounts();
-    afterLoad({ path: null });
-  }
-
-  async function openDoc() {
-    if (!(await confirmDiscard())) return;
-    const f = await native.open();
-    if (f) await loadFile(f);
-  }
-
   /* ---------- Exports ---------- */
   function report(res, label) {
     if (!res) return;
@@ -226,7 +497,7 @@
   }
 
   async function exportDocx() {
-    if (!(await P.runDlp(true))) return;
+    if (!inDoc() || !(await P.runDlp(true))) return;
     try {
       const bytes = PlumeDocx.build(ed, { author: state.author || 'Moi', title: state.title, comments: state.comments });
       report(await native.exportDocx(bytes, safeName()), 'Word');
@@ -234,7 +505,7 @@
   }
 
   async function exportPdf() {
-    if (!(await P.runDlp(true))) return;
+    if (!inDoc() || !(await P.runDlp(true))) return;
     report(await native.exportPdf(safeName()), 'PDF');
   }
 
@@ -245,7 +516,7 @@
     '.pagebreak{border-top:1px dashed #bbb;margin:24px 0}';
 
   async function exportHtml() {
-    if (!(await P.runDlp(true))) return;
+    if (!inDoc() || !(await P.runDlp(true))) return;
     const c = ed.cloneNode(true);
     c.querySelectorAll('.noexport').forEach((n) => n.remove());
     c.querySelectorAll('.cmt').forEach((n) => P.unwrap(n));
@@ -255,12 +526,14 @@
   }
 
   async function printDoc() {
-    if (!(await P.runDlp(true))) return;
+    if (!inDoc() || !(await P.runDlp(true))) return;
     await native.print();
   }
+  Object.assign(app, { exportDocx, exportPdf, exportHtml, print: printDoc });
 
   /* ---------- Mot de passe ---------- */
   async function setPassword() {
+    if (!inDoc()) return;
     const r = await P.modal({
       title: 'Protéger par mot de passe',
       message: state.password
@@ -273,64 +546,112 @@
     if (r.values.p1 !== r.values.p2) { P.toast('Les deux mots de passe ne correspondent pas.'); return; }
     if (r.values.p1 && r.values.p1.length < 6) { P.toast('Choisissez au moins 6 caractères.'); return; }
     state.password = r.values.p1 || null;
-    if (state.password) { try { await native.recovery.clear(); } catch (_) { /* ignoré */ } }   // pas de copie en clair
-    P.markDirty();
+    P.markDirty();     // la copie de secours est réécrite sans ce document (jamais de copie en clair d'un document chiffré)
     await save(false);
   }
+  app.setPassword = setPassword;
 
-  /* ---------- Menu natif ---------- */
-  const MENU = {
-    new: newDoc, open: openDoc, save: () => save(false), saveAs: () => save(true),
-    exportDocx, exportPdf, exportHtml, print: printDoc, password: setPassword,
-    find: () => P.openFind(), pageless: () => { setPageless(!state.pageless); P.markDirty(); },
-  };
-  native.onMenu((id) => { const fn = MENU[id]; if (fn) fn(); });
-  native.onExternalOpen(async (f) => { if (await confirmDiscard()) await loadFile(f); });
+  /* ---------- Plein écran, avatar, raccourcis ---------- */
+  app.toggleFullscreen = () => { try { native.toggleFullscreen(); } catch (_) { /* ignoré */ } };
+  $$('[data-profile]').forEach((b) => b.addEventListener('click', () => cfg().openProfile(b)));
+  $('#btn-expand').addEventListener('click', () => cfg().set('compact', false));
+
+  document.addEventListener('keydown', (e) => {
+    if (document.querySelector('.overlay')) return;          // une boîte de dialogue est ouverte
+    const mod = e.ctrlKey || e.metaKey;
+    const key = e.key;
+    if (key === 'F11') { e.preventDefault(); app.toggleFullscreen(); return; }
+    if (e.altKey && key === 'Home') { e.preventDefault(); activate('home'); return; }
+    if (!mod) return;
+    if (key === 'Tab' || key === 'PageDown' || key === 'PageUp') { e.preventDefault(); cycle(key === 'PageUp' || (key === 'Tab' && e.shiftKey) ? -1 : 1); return; }
+    if (e.altKey) return;                                    // Ctrl+Alt+M : géré par l'éditeur
+    const k = key.toLowerCase();
+    if (k === 'n' || k === 't') { e.preventDefault(); newDoc(); }
+    else if (k === 'o') { e.preventDefault(); openDoc(); }
+    else if (k === 's') { e.preventDefault(); if (inDoc()) save(e.shiftKey); }
+    else if (k === 'p') { e.preventDefault(); printDoc(); }
+    else if (k === 'w') { e.preventDefault(); app.closeActive(); }
+    else if (k === 'f' && e.shiftKey) { e.preventDefault(); cfg().set('compact', !cfg().get('compact')); }
+    else if (k === 'f' && !inDoc()) { e.preventDefault(); $('#home-q').focus(); }
+    else if (k === '/') { e.preventDefault(); cfg().openDialog('shortcuts'); }
+    else if (inDoc() && (key === '+' || key === '=')) { e.preventDefault(); app.zoomStep(1); }
+    else if (inDoc() && (key === '-' || key === '_')) { e.preventDefault(); app.zoomStep(-1); }
+    else if (inDoc() && key === '0') { e.preventDefault(); app.zoomStep(0); }
+  }, true);
+
+  native.onExternalOpen((f) => { openFile(f); });
 
   // Utilisé par le processus principal (fermeture de la fenêtre)
   window.plume = {
-    isDirty: () => state.dirty,
-    save: () => save(false),
-    discardRecovery: () => native.recovery.clear(),
+    isDirty: () => anyDirty(),
+    save: async () => {
+      captureActive();
+      for (const t of tabs.filter((x) => x.st.dirty)) {
+        activate(t.id);
+        if (!(await save(false))) return false;
+      }
+      return true;
+    },
+    discardRecovery: async () => { recoveryOn = false; return native.recovery.clear(); },
   };
 
-  /* ---------- Récupération automatique et versions automatiques ---------- */
+  /* ---------- Récupération automatique (tous les onglets modifiés) et versions automatiques ---------- */
   let writtenRev = 0;
-  setInterval(async () => {
-    if (!state.dirty || state.password || rev === writtenRev) return;
+  let recoveryOn = false;
+  async function syncRecovery(force) {
+    if (!force && rev === writtenRev) return;
     const mine = rev;
-    try { await native.recovery.write(JSON.stringify(P.serialize())); writtenRev = mine; } catch (_) { /* ignoré */ }
-  }, 5000);
+    try {
+      captureActive();
+      const dirty = cfg().get('autoRecovery') ? tabs.filter((t) => t.st.dirty && !t.st.password) : [];
+      if (!dirty.length) {
+        if (recoveryOn) { await native.recovery.clear(); recoveryOn = false; }
+      } else {
+        await native.recovery.write(JSON.stringify(dirty.map((t) => P.serializeDoc(t.st, t.html))));
+        recoveryOn = true;
+      }
+      writtenRev = mine;
+    } catch (_) { /* ignoré : réessai au prochain passage */ }
+  }
+  setInterval(() => syncRecovery(false), 5000);
+  app.syncRecovery = syncRecovery;
 
   setInterval(() => {
-    if (state.dirty && P.snapshot(null, true) && tab === 'versions') P.renderPanel();
+    if (cfg().get('autoVersions') && inDoc() && state.dirty && P.snapshot(null, true) && tab === 'versions') P.renderPanel();
   }, 10 * 60 * 1000);
 
   /* ---------- Démarrage ---------- */
-  async function start() {
-    setAuthor(loadAuthor());
-    setMode('edit');
-    refreshChrome();
-    P.updateCounts();
-    let init = {};
-    try { init = (await native.init()) || {}; } catch (_) { /* ignoré */ }
-    if (!state.author) await askAuthor(true);
-
+  async function restoreRecovery() {
     try {
       const rec = await native.recovery.read();
-      if (rec && typeof rec === 'string') {
-        const data = JSON.parse(rec);
-        const ok = await P.confirm(
-          'Restaurer un document non enregistré ?',
-          'Plume s’est fermé avant d’enregistrer « ' + (data.title || 'Sans titre') + ' » (' + fmtDate(data.savedAt) + '). Voulez-vous le récupérer ?',
-          'Restaurer');
-        if (ok) { P.loadData(data); afterLoad({ path: null, dirty: true }); rev++; }
-        else await native.recovery.clear();
-      }
+      if (!rec || typeof rec !== 'string') return;
+      const parsed = JSON.parse(rec);
+      const docs = (Array.isArray(parsed) ? parsed : [parsed]).filter((d) => d && d.format === 'plume' && typeof d.html === 'string');
+      if (!docs.length) { await native.recovery.clear(); return; }
+      const names = docs.map((d) => '« ' + (d.title || 'Sans titre') + ' »').join(', ');
+      const ok = await P.confirm(
+        docs.length > 1 ? 'Restaurer des documents non enregistrés ?' : 'Restaurer un document non enregistré ?',
+        docs.length > 1
+          ? 'Plume s’est fermé avant d’enregistrer ' + docs.length + ' documents : ' + names + '. Voulez-vous les récupérer ?'
+          : 'Plume s’est fermé avant d’enregistrer ' + names + ' (' + fmtDate(docs[0].savedAt) + '). Voulez-vous le récupérer ?',
+        'Restaurer');
+      if (!ok) { await native.recovery.clear(); return; }
+      for (const data of docs) openTab(() => { P.loadData(data); afterLoad({ path: null, dirty: true }); });
+      rev++;
     } catch (_) { try { await native.recovery.clear(); } catch (__) { /* ignoré */ } }
-
-    if (init.file && (await confirmDiscard())) await loadFile(init.file);
-    ed.focus();
   }
-  start();
+
+  app.start = async function () {
+    setAuthor(loadAuthor());
+    showView('home');
+    renderTabs();
+    refreshChrome();
+    if (P.home) P.home.refresh();
+    let init = {};
+    try { init = (await native.init()) || {}; } catch (_) { /* ignoré */ }
+    app.info = { version: init.version, electron: init.electron, chrome: init.chrome };
+    if (!state.author) await askAuthor(true);
+    await restoreRecovery();
+    if (init.file) await openFile(init.file);
+  };
 })();

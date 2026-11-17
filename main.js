@@ -27,7 +27,7 @@ if (!gotLock) {
 
 function fileFromArgv(argv) {
   const args = argv.slice(app.isPackaged ? 1 : 2);
-  return args.find((a) => /\.(plume|html?|txt)$/i.test(a) && fs.existsSync(a)) || null;
+  return remember(args.find((a) => /\.(plume|html?|txt)$/i.test(a) && fs.existsSync(a)) || null);
 }
 
 // ---------- Fichiers ----------
@@ -68,17 +68,65 @@ function decrypt(buf, password) {
   return Buffer.concat([d.update(buf.subarray(o)), d.final()]).toString('utf8');
 }
 
+// ---------- Fichiers connus (le moteur d'interface ne peut ouvrir que ceux-ci) ----------
+const known = new Set();
+const remember = (p) => { if (typeof p === 'string' && p) known.add(path.resolve(p)); return p; };
+const isKnown = (p) => typeof p === 'string' && known.has(path.resolve(p));
+
+// ---------- Documents récents ----------
+const userFile = (name) => path.join(app.getPath('userData'), name);
+const HEX = /^#[0-9a-f]{6}$/i;
+
+function readJson(file, fallback) {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (_) { return fallback; }
+}
+
+function loadRecents() {
+  const list = readJson(userFile('recents.json'), []);
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((r) => r && typeof r.path === 'string' && /\.plume$/i.test(r.path))
+    .map((r) => ({
+      path: r.path,
+      title: String(r.title || path.basename(r.path, '.plume')).slice(0, 200),
+      openedAt: Number(r.openedAt) || 0,
+      preview: String(r.preview || '').slice(0, 700),
+      encrypted: !!r.encrypted,
+    }))
+    .slice(0, 30);
+}
+
+function saveRecents(list) {
+  try { writeAtomic(userFile('recents.json'), JSON.stringify(list.slice(0, 30))); } catch (_) { /* disque en lecture seule : sans gravité */ }
+}
+
+// ---------- État de la fenêtre (couleurs de la barre de titre) ----------
+const FRAME_H = 40;
+const defaultTheme = { color: '#ececef', symbol: '#1d1d1f', bg: '#f5f5f7' };
+function loadTheme() {
+  const t = readJson(userFile('window.json'), {});
+  return {
+    color: HEX.test(t.color) ? t.color : defaultTheme.color,
+    symbol: HEX.test(t.symbol) ? t.symbol : defaultTheme.symbol,
+    bg: HEX.test(t.bg) ? t.bg : defaultTheme.bg,
+  };
+}
+
 // ---------- Fenêtre ----------
 function createWindow() {
   const iconPath = path.join(__dirname, 'build', 'icon.png');
+  const theme = loadTheme();
   win = new BrowserWindow({
     width: 1280,
     height: 860,
     minWidth: 900,
     minHeight: 600,
-    backgroundColor: '#f1f3f4',
+    backgroundColor: theme.bg,
     title: 'Plume',
     icon: fs.existsSync(iconPath) ? iconPath : undefined,
+    // Les boutons Réduire / Agrandir / Fermer sont dessinés par Windows dans la barre d'onglets de l'application.
+    titleBarStyle: 'hidden',
+    titleBarOverlay: { color: theme.color, symbolColor: theme.symbol, height: FRAME_H },
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -145,63 +193,6 @@ function createWindow() {
   win.on('closed', () => { win = null; });
 }
 
-function buildMenu() {
-  const send = (id) => () => win && win.webContents.send('menu', id);
-  const template = [
-    {
-      label: 'Fichier',
-      submenu: [
-        { label: 'Nouveau', accelerator: 'CmdOrCtrl+N', click: send('new') },
-        { label: 'Ouvrir…', accelerator: 'CmdOrCtrl+O', click: send('open') },
-        { type: 'separator' },
-        { label: 'Enregistrer', accelerator: 'CmdOrCtrl+S', click: send('save') },
-        { label: 'Enregistrer sous…', accelerator: 'CmdOrCtrl+Shift+S', click: send('saveAs') },
-        { type: 'separator' },
-        { label: 'Exporter en Word (.docx)…', click: send('exportDocx') },
-        { label: 'Exporter en PDF…', click: send('exportPdf') },
-        { label: 'Exporter en HTML…', click: send('exportHtml') },
-        { label: 'Imprimer…', accelerator: 'CmdOrCtrl+P', click: send('print') },
-        { type: 'separator' },
-        { label: 'Protéger par mot de passe…', click: send('password') },
-        { type: 'separator' },
-        { role: 'quit', label: 'Quitter' },
-      ],
-    },
-    {
-      label: 'Édition',
-      submenu: [
-        { role: 'undo', label: 'Annuler' },
-        { role: 'redo', label: 'Rétablir' },
-        { type: 'separator' },
-        { role: 'cut', label: 'Couper' },
-        { role: 'copy', label: 'Copier' },
-        { role: 'paste', label: 'Coller' },
-        { role: 'selectAll', label: 'Tout sélectionner' },
-        { type: 'separator' },
-        { label: 'Rechercher / remplacer…', accelerator: 'CmdOrCtrl+F', click: send('find') },
-      ],
-    },
-    {
-      label: 'Affichage',
-      submenu: [
-        { label: 'Mode sans pages', click: send('pageless') },
-        { type: 'separator' },
-        { role: 'zoomIn', label: 'Zoom avant' },
-        { role: 'zoomOut', label: 'Zoom arrière' },
-        { role: 'resetZoom', label: 'Zoom normal' },
-        { role: 'togglefullscreen', label: 'Plein écran' },
-      ],
-    },
-    {
-      label: 'Aide',
-      submenu: [
-        { label: 'À propos de Plume', click: () => dialog.showMessageBox(win, { type: 'info', title: 'Plume', message: 'Plume ' + app.getVersion(), detail: 'Éditeur de documents local. Les documents restent sur votre ordinateur.' }) },
-      ],
-    },
-  ];
-  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
-}
-
 // ---------- IPC ----------
 const guard = (fn) => async (...args) => {
   try { return await fn(...args); } catch (err) { return { error: String(err && err.message ? err.message : err) }; }
@@ -210,7 +201,7 @@ const guard = (fn) => async (...args) => {
 ipcMain.handle('app:init', guard(() => {
   const f = pendingOpen;
   pendingOpen = null;
-  return { version: app.getVersion(), file: f ? readDocFile(f) : null };
+  return { version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome, file: f ? readDocFile(f) : null };
 }));
 
 ipcMain.handle('doc:open', guard(async () => {
@@ -219,7 +210,7 @@ ipcMain.handle('doc:open', guard(async () => {
     filters: [{ name: 'Documents (Plume, HTML, texte)', extensions: ['plume', 'html', 'htm', 'txt'] }],
   });
   if (r.canceled || !r.filePaths[0]) return null;
-  return readDocFile(r.filePaths[0]);
+  return readDocFile(remember(r.filePaths[0]));
 }));
 
 ipcMain.handle('doc:save', guard(async (_e, { path: p, content, password, saveAs, name }) => {
@@ -234,6 +225,7 @@ ipcMain.handle('doc:save', guard(async (_e, { path: p, content, password, saveAs
   }
   const data = password ? encrypt(content, password) : Buffer.from(content, 'utf8');
   writeAtomic(target, data);
+  remember(target);
   return { path: target };
 }));
 
@@ -299,6 +291,78 @@ ipcMain.handle('shell:open', guard(async (_e, { kind, value }) => {
   return false;
 }));
 
+// ---------- Fenêtre, correcteur, presse-papiers ----------
+ipcMain.handle('win:theme', guard((_e, t) => {
+  if (!t || !HEX.test(t.color) || !HEX.test(t.symbol) || !HEX.test(t.bg)) return false;
+  if (win) {
+    try { win.setTitleBarOverlay({ color: t.color, symbolColor: t.symbol, height: FRAME_H }); } catch (_) { /* plateforme sans superposition */ }
+    win.setBackgroundColor(t.bg);
+  }
+  try { writeAtomic(userFile('window.json'), JSON.stringify({ color: t.color, symbol: t.symbol, bg: t.bg })); } catch (_) { /* ignoré */ }
+  return true;
+}));
+
+ipcMain.handle('win:uiZoom', guard((_e, f) => {
+  const n = Number(f);
+  if (!win || !isFinite(n)) return false;
+  win.webContents.setZoomFactor(Math.min(1.6, Math.max(0.8, n)));
+  return true;
+}));
+
+ipcMain.handle('win:fullscreen', guard(() => {
+  if (!win) return false;
+  win.setFullScreen(!win.isFullScreen());
+  return win.isFullScreen();
+}));
+
+ipcMain.handle('spell:langs', guard((_e, mode) => {
+  const langs = mode === 'fr' ? ['fr'] : mode === 'en' ? ['en-US'] : ['fr', 'en-US'];
+  try { win.webContents.session.setSpellCheckerLanguages(langs); } catch (_) { return false; }
+  return true;
+}));
+
+ipcMain.handle('edit:cmd', guard((_e, cmd) => {
+  if (!win || !['cut', 'copy', 'paste', 'selectAll'].includes(cmd)) return false;
+  win.webContents[cmd]();
+  return true;
+}));
+
+ipcMain.handle('recents:list', guard(() => {
+  const list = loadRecents();
+  list.forEach((r) => remember(r.path));
+  return list.map((r) => Object.assign({}, r, { missing: !fs.existsSync(r.path) }));
+}));
+
+ipcMain.handle('recents:add', guard((_e, r) => {
+  if (!r || !isKnown(r.path) || !/\.plume$/i.test(r.path)) return false;
+  const entry = {
+    path: r.path,
+    title: String(r.title || path.basename(r.path, '.plume')).slice(0, 200),
+    openedAt: Date.now(),
+    // Aucun aperçu pour un document chiffré : son contenu ne doit pas se retrouver en clair dans la liste.
+    preview: r.encrypted ? '' : String(r.preview || '').slice(0, 700),
+    encrypted: !!r.encrypted,
+  };
+  const list = loadRecents().filter((x) => path.resolve(x.path) !== path.resolve(entry.path));
+  list.unshift(entry);
+  saveRecents(list);
+  return true;
+}));
+
+ipcMain.handle('recents:remove', guard((_e, p) => {
+  if (typeof p !== 'string') return false;
+  saveRecents(loadRecents().filter((x) => path.resolve(x.path) !== path.resolve(p)));
+  return true;
+}));
+
+ipcMain.handle('recents:clear', guard(() => { saveRecents([]); return true; }));
+
+ipcMain.handle('recents:open', guard((_e, p) => {
+  if (!loadRecents().some((x) => typeof p === 'string' && path.resolve(x.path) === path.resolve(p))) return { error: 'Ce document n’est plus dans la liste.' };
+  if (!fs.existsSync(p)) return { error: 'Ce fichier est introuvable : il a peut-être été déplacé ou supprimé.', missing: true };
+  return readDocFile(remember(p));
+}));
+
 const recoveryFile = () => path.join(app.getPath('userData'), 'recovery.plume.json');
 ipcMain.handle('recovery:write', guard((_e, text) => { fs.writeFileSync(recoveryFile(), String(text), 'utf8'); return true; }));
 ipcMain.handle('recovery:read', guard(() => (fs.existsSync(recoveryFile()) ? fs.readFileSync(recoveryFile(), 'utf8') : null)));
@@ -308,7 +372,7 @@ ipcMain.handle('recovery:clear', guard(() => { if (fs.existsSync(recoveryFile())
 if (gotLock) {
   pendingOpen = fileFromArgv(process.argv);
   app.whenReady().then(() => {
-    buildMenu();
+    Menu.setApplicationMenu(null);   // les menus sont dans l'interface (barre de menus HTML)
     createWindow();
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
   });

@@ -14,7 +14,6 @@
 
   /* ---------- Plan ---------- */
   P.panels.outline = function (body) {
-    body.append(h('div', { class: 'panel-bar' }, h('b', { text: 'Plan du document' })));
     const heads = Array.from(ed.querySelectorAll('h1, h2, h3')).filter((n) => n.textContent.trim());
     if (!heads.length) {
       body.append(h('p', { class: 'empty', text: 'Aucun titre pour l’instant. Utilisez « Titre 1 », « Titre 2 » ou « Titre 3 » dans le style de paragraphe : ils apparaîtront ici.' }));
@@ -38,17 +37,20 @@
     document.body.append(overlay);
   }
 
+  /** Boîte « Nommer la version actuelle » (aussi appelée depuis le menu Fichier). */
+  P.nameVersion = async function () {
+    const r = await P.modal({ title: 'Enregistrer une version', message: 'Une version nommée sert de point de repère que vous pourrez restaurer plus tard.',
+      fields: [{ id: 'name', label: 'Nom', value: 'Version du ' + new Date().toLocaleDateString('fr-CA') }] });
+    if (!r) return;
+    P.snapshot(r.values.name.trim() || 'Version nommée', false);
+    P.markDirty();
+    P.renderPanel();
+  };
+
   P.panels.versions = function (body) {
     const bar = h('div', { class: 'panel-bar' }, h('b', { text: 'Historique des versions' }));
     if (!readOnly()) {
-      bar.append(h('button', { class: 'sm primary', type: 'button', text: 'Nommer la version actuelle', onclick: async () => {
-        const r = await P.modal({ title: 'Enregistrer une version', message: 'Une version nommée sert de point de repère que vous pourrez restaurer plus tard.',
-          fields: [{ id: 'name', label: 'Nom', value: 'Version du ' + new Date().toLocaleDateString('fr-CA') }] });
-        if (!r) return;
-        P.snapshot(r.values.name.trim() || 'Version nommée', false);
-        P.markDirty();
-        P.renderPanel();
-      } }));
+      bar.append(h('button', { class: 'sm primary', type: 'button', text: 'Nommer la version actuelle', onclick: () => P.nameVersion() }));
     }
     body.append(bar);
     if (!state.versions.length) {

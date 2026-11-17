@@ -22,6 +22,7 @@
     ed.querySelectorAll('span[style*="xxx-large"]').forEach((s) => { s.style.fontSize = pt; });
   }
 
+  P.setFontSize = (pt) => setFontSize(pt);
   P.exec = function (cmd, val, css) {
     if (readOnly()) return;
     P.restoreSel();
@@ -79,21 +80,40 @@
     if (b.dataset.cmd) P.exec(b.dataset.cmd, null, /^justify/.test(b.dataset.cmd));
     else if (b.dataset.act) (actions[b.dataset.act] || (() => {}))();
     else if (b.dataset.tbl) tableOp(b.dataset.tbl);
+    else if (b.dataset.size) stepSize(parseInt(b.dataset.size, 10));
   });
 
-  $('#tb-block').addEventListener('change', (e) => {
+  function setBlock(v) {
     if (readOnly()) return;
-    const v = e.target.value;
     P.restoreSel();
     const inBq = closestFromSel('blockquote');
     if (v === 'p' && inBq) document.execCommand('outdent');
     else document.execCommand('formatBlock', false, '<' + v + '>');
     P.markDirty();
     updateToolbar();
-  });
+  }
+  P.setBlock = setBlock;
+  $('#tb-block').addEventListener('change', (e) => setBlock(e.target.value));
   $('#tb-font').addEventListener('change', (e) => P.exec('fontName', e.target.value, true));
-  $('#tb-size').addEventListener('change', (e) => setFontSize(parseInt(e.target.value, 10)));
-  $('#tb-color').addEventListener('input', (e) => { $('#ico-color').style.color = e.target.value; P.exec('foreColor', e.target.value, true); });
+
+  const sizeBox = $('#tb-size');
+  const clampSize = (n) => Math.max(6, Math.min(96, n));
+  function stepSize(dir) {
+    const cur = parseInt(sizeBox.value, 10) || 11;
+    const next = clampSize(cur + dir);
+    sizeBox.value = String(next);
+    setFontSize(next);
+  }
+  sizeBox.addEventListener('change', () => {
+    const n = parseInt(sizeBox.value, 10);
+    if (!isFinite(n)) { updateToolbar(); return; }
+    sizeBox.value = String(clampSize(n));
+    setFontSize(clampSize(n));
+  });
+  sizeBox.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); sizeBox.dispatchEvent(new Event('change')); ed.focus(); }
+  });
+  $('#tb-color').addEventListener('input', (e) => { $('#ico-color').style.background = e.target.value; P.exec('foreColor', e.target.value, true); });
   $('#tb-hilite').addEventListener('input', (e) => { $('#ico-hilite').style.background = e.target.value; P.exec('hiliteColor', e.target.value, true); });
 
   function closestFromSel(selector) {
@@ -124,8 +144,7 @@
       const fsel = $('#tb-font');
       if (Array.from(fsel.options).some((o) => o.value === fam)) fsel.value = fam;
       const pt = String(Math.round(parseFloat(cs.fontSize) * 0.75));
-      const ssel = $('#tb-size');
-      if (Array.from(ssel.options).some((o) => o.value === pt)) ssel.value = pt;
+      if (document.activeElement !== sizeBox) sizeBox.value = pt;
     }
     $('#tablebar').hidden = !closestFromSel('td, th');
   }
@@ -232,6 +251,9 @@
     updateToolbar();
   }
 
+  P.tableOp = tableOp;
+  P.inTable = () => !!closestFromSel('td, th');
+
   // ---------- Insertions simples ----------
   async function insertLink() {
     P.saveSel();
@@ -273,6 +295,8 @@
     comment: () => P.addComment && P.addComment(),
     find: () => openFind(),
     dlp: () => P.runDlp && P.runDlp(false),
+    print: () => P.app && P.app.print(),
+    spell: () => P.settings.set('spell', !P.settings.get('spell')),
   };
   P.actions = actions;
 
@@ -771,10 +795,11 @@
   document.addEventListener('keydown', (e) => {
     const mod = e.ctrlKey || e.metaKey;
     if (e.key === 'Escape' && !fb.hidden && !document.querySelector('.overlay')) { fb.hidden = true; ed.focus(); }
-    if (!mod) return;
+    if (!mod || (P.app && !P.app.inDoc())) return;
     const k = e.key.toLowerCase();
     if (k === 'k' && !e.altKey) { e.preventDefault(); if (!readOnly()) insertLink(); }
-    else if (k === 'h') { e.preventDefault(); openFind(); }
+    else if (k === 'h' || (k === 'f' && !e.shiftKey && !e.altKey)) { e.preventDefault(); openFind(); }
+    else if (e.key === '\\') { e.preventDefault(); if (!readOnly()) P.exec('removeFormat'); }
     else if (k === 'm' && e.altKey) { e.preventDefault(); if (P.addComment) P.addComment(); }
   });
 

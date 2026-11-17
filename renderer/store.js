@@ -24,9 +24,9 @@
   const DATA_IMG = /src="(data:image\/[a-z]+;base64,[A-Za-z0-9+/=]+)"/g;
   const IMG_OK = /^data:image\/(png|jpe?g|gif|webp);base64,[A-Za-z0-9+/=]+$/;
 
-  P.pack = (html) => html.replace(DATA_IMG, (_m, data) => {
+  P.pack = (html, assets) => html.replace(DATA_IMG, (_m, data) => {
     const id = hash(data) + data.length.toString(36);
-    state.assets[id] = data;
+    (assets || state.assets)[id] = data;
     return `src="asset:${id}"`;
   });
 
@@ -44,20 +44,26 @@
 
   const words = () => (ed.textContent.match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu) || []).length;
 
-  P.serialize = () => {
-    const html = P.pack(P.cleanHTML());
+  /** Sérialise un document : celui de l'éditeur, ou (onglet inactif) {st, html} tel que mémorisé. */
+  P.serializeDoc = (st, rawHtml) => {
+    const holder = document.createElement('div');
+    holder.innerHTML = rawHtml;
+    holder.querySelectorAll('.active').forEach((n) => n.classList.remove('active'));
+    st.assets = st.assets || {};
+    const html = P.pack(holder.innerHTML, st.assets);
     const used = new Set();
     const scan = (s) => { for (const m of s.matchAll(/asset:([a-z0-9]+)/g)) used.add(m[1]); };
     scan(html);
-    state.versions.forEach((v) => scan(v.html));
+    st.versions.forEach((v) => scan(v.html));
     const assets = {};
-    used.forEach((id) => { if (state.assets[id]) assets[id] = state.assets[id]; });
+    used.forEach((id) => { if (st.assets[id]) assets[id] = st.assets[id]; });
     return {
-      format: 'plume', version: 1, title: state.title, savedAt: new Date().toISOString(),
-      pageless: state.pageless, html, assets,
-      variables: state.variables, comments: state.comments, versions: state.versions,
+      format: 'plume', version: 1, title: st.title, savedAt: new Date().toISOString(),
+      pageless: st.pageless, html, assets,
+      variables: st.variables, comments: st.comments, versions: st.versions,
     };
   };
+  P.serialize = () => P.serializeDoc(state, ed.innerHTML);
 
   const str = (v, max) => String(v == null ? '' : v).slice(0, max || 5000);
 

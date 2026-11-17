@@ -1,143 +1,289 @@
 <!doctype html>
-<html lang="fr">
+<html lang="fr" data-theme="light" data-accent="blue">
 <head>
   <meta charset="utf-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; form-action 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Plume</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="chrome.css">
+  <script src="boot.js"></script>
 </head>
 <body>
+
+<!-- Icônes (SVG intégré : aucune ressource externe) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3.5 11.2 12 4l8.5 7.2M6 9.6V19a1 1 0 0 0 1 1h3.5v-5h3v5H17a1 1 0 0 0 1-1V9.6"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+    <symbol id="i-chev-down" viewBox="0 0 24 24"><path d="M6.5 9.5 12 15l5.5-5.5"/></symbol>
+    <symbol id="i-chev-right" viewBox="0 0 24 24"><path d="M9.5 6.5 15 12l-5.5 5.5"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5.5 12.5l4.2 4.2L18.5 7.8"/></symbol>
+    <symbol id="i-doc" viewBox="0 0 24 24"><path d="M7 3.5h6.6L19 8.9V19.5a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1zM13.5 3.6V9H19M9 13h6M9 16.5h6"/></symbol>
+    <symbol id="i-feather" viewBox="0 0 24 24"><path d="M19.5 4.5C12.8 4 7.2 7.6 7.4 14.6c0 .7.1 1.4.3 2.1 6.9.2 12.4-4.4 11.8-12.2zM19.5 4.5 4.5 19.5"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4.50 9.50 9 5M4.50 9.50H14a5.50 5.50 0 0 1 0 11h-3"/></symbol>
+    <symbol id="i-redo" viewBox="0 0 24 24"><path d="M15 14l4.50-4.50L15 5M19.50 9.50H10a5.50 5.50 0 0 0 0 11h3"/></symbol>
+    <symbol id="i-print" viewBox="0 0 24 24"><path d="M7 8.50V4h10v4.50M7 17H5.50A1.50 1.50 0 0 1 4 15.50v-5A2 2 0 0 1 6 8.50h12a2 2 0 0 1 2 2v5a1.50 1.50 0 0 1-1.50 1.50H17M7 14h10v6H7z"/></symbol>
+    <symbol id="i-spell" viewBox="0 0 24 24"><path d="M3.50 16.50 7.50 6l4 10.50M5 12.80h5M13.50 17l3 3 5-6"/></symbol>
+    <symbol id="i-bold" viewBox="0 0 24 24"><path d="M8 5.50h5a3.20 3.20 0 0 1 0 6.50H8zM8 12h5.80a3.50 3.50 0 0 1 0 7H8z"/></symbol>
+    <symbol id="i-italic" viewBox="0 0 24 24"><path d="M10 5h7M7 19h7M14.50 5 9.50 19"/></symbol>
+    <symbol id="i-underline" viewBox="0 0 24 24"><path d="M7.50 4.50v6.50a4.50 4.50 0 0 0 9 0V4.50M5.50 20h13"/></symbol>
+    <symbol id="i-strike" viewBox="0 0 24 24"><path d="M4.50 12h15M16.50 7.80C15.80 6 14.20 5 12 5c-2.50 0-4 1.30-4 3 0 1.20.7 2.10 2.20 2.70M8 16.20c.6 1.70 2.20 2.80 4.30 2.80 2.30 0 4-1.20 4-3 0-.7-.2-1.30-.7-1.80"/></symbol>
+    <symbol id="i-color" viewBox="0 0 24 24"><path d="M6.50 17 12 5l5.50 12M8.50 12.50h7"/></symbol>
+    <symbol id="i-hilite" viewBox="0 0 24 24"><path d="M14.50 5.50 18.50 9.50 10.50 17.50H6.50v-4zM12.50 7.50l4 4M5 21h14"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10.20 13.80a4 4 0 0 0 5.70 0l3-3a4 4 0 0 0-5.70-5.70l-1 1M13.80 10.20a4 4 0 0 0-5.70 0l-3 3a4 4 0 0 0 5.70 5.70l1-1"/></symbol>
+    <symbol id="i-comment" viewBox="0 0 24 24"><path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-7l-4.50 4v-4H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM12 8v5M9.50 10.50h5"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><path d="M5 4.50h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1zM4.20 16.50l4.30-4.30 4 4M12.50 14.50l2.50-2.50 4.80 4.80"/><circle cx="8.8" cy="8.8" r="1.3" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-al-left" viewBox="0 0 24 24"><path d="M4 6h16M4 10h10M4 14h16M4 18h10"/></symbol>
+    <symbol id="i-al-center" viewBox="0 0 24 24"><path d="M4 6h16M7 10h10M4 14h16M7 18h10"/></symbol>
+    <symbol id="i-al-right" viewBox="0 0 24 24"><path d="M4 6h16M10 10h10M4 14h16M10 18h10"/></symbol>
+    <symbol id="i-al-justify" viewBox="0 0 24 24"><path d="M4 6h16M4 10h16M4 14h16M4 18h16"/></symbol>
+    <symbol id="i-list-bullet" viewBox="0 0 24 24"><path d="M9.50 6.50H20M9.50 12H20M9.50 17.50H20"/><circle cx="5" cy="6.5" r="1.4" fill="currentColor" stroke="none"/><circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="5" cy="17.5" r="1.4" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-list-number" viewBox="0 0 24 24"><path d="M10 6.50h10M10 12h10M10 17.50h10"/><text x="3.20" y="8.60" font-size="7" font-weight="700" fill="currentColor" stroke="none" font-family="system-ui,sans-serif">1</text><text x="3.20" y="14.10" font-size="7" font-weight="700" fill="currentColor" stroke="none" font-family="system-ui,sans-serif">2</text><text x="3.20" y="19.60" font-size="7" font-weight="700" fill="currentColor" stroke="none" font-family="system-ui,sans-serif">3</text></symbol>
+    <symbol id="i-checklist" viewBox="0 0 24 24"><path d="M4.50 5h4.50v4.50H4.50zM5.60 7.30l1.10 1.10 1.80-2M4.50 14h4.50v4.50H4.50zM12.50 7.30H20M12.50 16.30H20"/></symbol>
+    <symbol id="i-indent-inc" viewBox="0 0 24 24"><path d="M4 6h16M12 10h8M12 14h8M4 18h16M4 9l3 3-3 3"/></symbol>
+    <symbol id="i-indent-dec" viewBox="0 0 24 24"><path d="M4 6h16M12 10h8M12 14h8M4 18h16M7 9l-3 3 3 3"/></symbol>
+    <symbol id="i-clear" viewBox="0 0 24 24"><path d="M5 6.50V5h11v1.50M10.50 5v10M7.50 15h6M15 14l5 5M20 14l-5 5"/></symbol>
+    <symbol id="i-table" viewBox="0 0 24 24"><path d="M5 5h14a1.50 1.50 0 0 1 1.50 1.50v11A1.50 1.50 0 0 1 19 19H5a1.50 1.50 0 0 1-1.50-1.50v-11A1.50 1.50 0 0 1 5 5zM3.50 10h17M3.50 14.50h17M9.50 5v14M14.50 5v14"/></symbol>
+    <symbol id="i-hr" viewBox="0 0 24 24"><path d="M4 12h16"/></symbol>
+    <symbol id="i-pagebreak" viewBox="0 0 24 24"><path d="M5 4h14M5 20h14M4 12h2.50M10.80 12h2.40M17.50 12H20"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><path d="M10.50 4a6.50 6.50 0 1 0 0 13 6.50 6.50 0 0 0 0-13zM15.30 15.30 20 20"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3.50 5 6v5.50c0 4.20 2.80 7.30 7 9 4.20-1.70 7-4.80 7-9V6zM9 12l2.20 2.20L15.20 10"/></symbol>
+    <symbol id="i-at" viewBox="0 0 24 24"><path d="M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0zM16 12v1.50a2.50 2.50 0 0 0 5 0V12a9 9 0 1 0-3.50 7.10"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.6" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.50 7a1.50 1.50 0 0 1 1.50-1.50h4l2 2.50h8A1.50 1.50 0 0 1 20.50 9.50V17a1.50 1.50 0 0 1-1.50 1.50H5A1.50 1.50 0 0 1 3.50 17z"/></symbol>
+    <symbol id="i-person" viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.50 20c.5-3.50 3.50-5.50 7.50-5.50s7 2 7.50 5.50"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><path d="M6.50 11h11a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1zM8.50 11V8a3.50 3.50 0 0 1 7 0v3"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.50A8 8 0 0 1 9.50 4 8 8 0 1 0 20 14.50z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.60 5.60 7 7M17 17l1.40 1.40M5.60 18.40 7 17M17 7l1.40-1.40"/></symbol>
+    <symbol id="i-monitor" viewBox="0 0 24 24"><path d="M4.50 5h15a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM9 20h6M12 16v4"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9M15 4.50v5M9 14.50v5"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4.50 19.50l1-4L16 5a2 2 0 0 1 2.80 0l.2.20a2 2 0 0 1 0 2.80L8.50 18.50zM14 7l3 3"/></symbol>
+    <symbol id="i-suggest" viewBox="0 0 24 24"><path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-7l-4.50 4v-4H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM9 13l.6-2.20L14 6.50l1.60 1.60-4.40 4.40z"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.50 12S6 5.50 12 5.50 21.50 12 21.50 12 18 18.50 12 18.50 2.50 12 2.50 12zM12 14.80a2.80 2.80 0 1 0 0-5.60 2.80 2.80 0 0 0 0 5.60z"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.40-5.70L4 8.70M4 4v4.70h4.70M12 7.50V12l3 2"/></symbol>
+    <symbol id="i-outline" viewBox="0 0 24 24"><path d="M5 5h14a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM9.50 5v14"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><path d="M5 4.50h5a.5.50 0 0 1 .5.50v5a.5.50 0 0 1-.5.50H5a.5.50 0 0 1-.5-.500V5A.5.50 0 0 1 5 4.50zM14 4.50h5a.5.50 0 0 1 .5.50v5a.5.50 0 0 1-.5.50h-5a.5.50 0 0 1-.5-.500V5a.5.50 0 0 1 .5-.500zM5 13.50h5a.5.50 0 0 1 .5.50v5a.5.50 0 0 1-.5.50H5a.5.50 0 0 1-.5-.500v-5a.5.50 0 0 1 .5-.500zM14 13.50h5a.5.50 0 0 1 .5.50v5a.5.50 0 0 1-.5.50h-5a.5.50 0 0 1-.5-.500v-5a.5.50 0 0 1 .5-.500z"/></symbol>
+    <symbol id="i-rows" viewBox="0 0 24 24"><path d="M9 6.50h11M9 12h11M9 17.50h11"/><circle cx="4.8" cy="6.5" r="1.4" fill="currentColor" stroke="none"/><circle cx="4.8" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="4.8" cy="17.5" r="1.4" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M9.50 4h5M7 7l.8 12a1 1 0 0 0 1 .9h6.40a1 1 0 0 0 1-.9L17 7M10 11v5M14 11v5"/></symbol>
+    <symbol id="i-keyboard" viewBox="0 0 24 24"><path d="M4 7h16a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1zM6.50 10.50h.01M10 10.50h.01M14 10.50h.01M17.50 10.50h.01M8 14h8"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.50"/><path d="M12 11v5M12 8h.01"/></symbol>
+    <symbol id="i-fullscreen" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M12 4v10M8 10.50l4 4 4-4M5 17v1.50a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V17"/></symbol>
+  </defs>
+</svg>
+
 <div id="app">
-  <header id="topbar">
-    <div class="brand">✒ Plume</div>
-    <input id="title" type="text" value="Sans titre" spellcheck="false" aria-label="Titre du document">
-    <span id="savestate">Prêt</span>
-    <div class="spacer"></div>
-    <button id="btn-author" title="Votre nom (utilisé pour les commentaires et suggestions)">👤 <span id="author-name">—</span></button>
-    <select id="mode" title="Mode d'édition" aria-label="Mode">
-      <option value="edit">✎ Édition</option>
-      <option value="suggest">✐ Suggestion</option>
-      <option value="view">👁 Lecture</option>
-    </select>
-    <button id="btn-pageless" title="Basculer entre pages et surface continue">▭ Sans pages</button>
-    <button id="btn-side" title="Panneau latéral (plan, commentaires, versions…)">☰ Panneau</button>
+
+  <!-- Barre d'onglets : les boutons Réduire / Agrandir / Fermer de Windows se placent à droite, dans cette même barre -->
+  <header id="tabstrip">
+    <div id="tabs" role="tablist" aria-label="Documents ouverts">
+      <button type="button" class="tab tab-home active" id="tab-home" role="tab" title="Accueil" aria-label="Accueil"><svg class="ic"><use href="#i-home"/></svg></button>
+    </div>
+    <button type="button" id="tab-new" title="Nouveau document (Ctrl+T)" aria-label="Nouveau document"><svg class="ic"><use href="#i-plus"/></svg></button>
+    <div id="drag-fill"></div>
   </header>
 
-  <div id="toolbar" role="toolbar" aria-label="Mise en forme">
-    <div class="grp">
-      <button data-cmd="undo" title="Annuler (Ctrl+Z)">↶</button>
-      <button data-cmd="redo" title="Rétablir (Ctrl+Y)">↷</button>
-    </div>
-    <div class="grp">
-      <select id="tb-block" title="Style de paragraphe">
-        <option value="p">Texte normal</option>
-        <option value="h1">Titre 1</option>
-        <option value="h2">Titre 2</option>
-        <option value="h3">Titre 3</option>
-        <option value="blockquote">Citation</option>
-      </select>
-      <select id="tb-font" title="Police">
-        <option>Calibri</option><option>Arial</option><option>Times New Roman</option>
-        <option>Georgia</option><option>Verdana</option><option>Segoe UI</option><option>Courier New</option>
-      </select>
-      <select id="tb-size" title="Taille (pt)">
-        <option>8</option><option>9</option><option>10</option><option selected>11</option><option>12</option>
-        <option>14</option><option>16</option><option>18</option><option>24</option><option>30</option>
-        <option>36</option><option>48</option><option>60</option><option>72</option>
-      </select>
-    </div>
-    <div class="grp">
-      <button data-cmd="bold" title="Gras (Ctrl+B)"><b>B</b></button>
-      <button data-cmd="italic" title="Italique (Ctrl+I)"><i>I</i></button>
-      <button data-cmd="underline" title="Souligné (Ctrl+U)"><u>U</u></button>
-      <button data-cmd="strikeThrough" title="Barré"><s>S</s></button>
-      <label class="colorbtn" title="Couleur du texte"><span id="ico-color">A</span><input type="color" id="tb-color" value="#d93025"></label>
-      <label class="colorbtn" title="Surlignage"><span id="ico-hilite">ab</span><input type="color" id="tb-hilite" value="#fff475"></label>
-    </div>
-    <div class="grp">
-      <button data-cmd="justifyLeft" title="Aligner à gauche">⬅</button>
-      <button data-cmd="justifyCenter" title="Centrer">↔</button>
-      <button data-cmd="justifyRight" title="Aligner à droite">➡</button>
-      <button data-cmd="justifyFull" title="Justifier">☰</button>
-    </div>
-    <div class="grp">
-      <button data-cmd="insertUnorderedList" title="Liste à puces">• Liste</button>
-      <button data-cmd="insertOrderedList" title="Liste numérotée">1. Liste</button>
-      <button data-act="checklist" title="Liste de tâches">☑ Tâches</button>
-      <button data-cmd="outdent" title="Diminuer le retrait">⇤</button>
-      <button data-cmd="indent" title="Augmenter le retrait">⇥</button>
-    </div>
-    <div class="grp">
-      <button data-act="at" title="Insérer une puce intelligente ou un bloc (ou tapez @)"><b>@</b> Insérer</button>
-      <button data-act="link" title="Lien (Ctrl+K)">🔗 Lien</button>
-      <button data-act="image" title="Image">🖼 Image</button>
-      <button data-act="table" title="Tableau">▦ Tableau</button>
-      <button data-act="hr" title="Ligne horizontale">― Ligne</button>
-      <button data-act="pagebreak" title="Saut de page">⤓ Saut</button>
-    </div>
-    <div class="grp">
-      <button data-act="comment" title="Commenter la sélection (Ctrl+Alt+M)">💬 Commenter</button>
-      <button data-act="find" title="Rechercher / remplacer (Ctrl+F)">🔍</button>
-      <button data-act="dlp" title="Vérifier les données sensibles">🛡</button>
-      <button data-cmd="removeFormat" title="Effacer la mise en forme">⌫ Format</button>
-    </div>
-    <div class="grp" id="tablebar" hidden>
-      <span class="grp-label">Tableau :</span>
-      <button data-tbl="addRow" title="Ajouter une ligne sous la ligne courante">＋ ligne</button>
-      <button data-tbl="addCol" title="Ajouter une colonne à droite">＋ colonne</button>
-      <button data-tbl="delRow" title="Supprimer la ligne">－ ligne</button>
-      <button data-tbl="delCol" title="Supprimer la colonne">－ colonne</button>
-      <button data-tbl="delTable" title="Supprimer le tableau">✕</button>
-    </div>
-  </div>
+  <main id="views">
 
-  <div id="workspace">
-    <div id="scroller">
-      <div id="page" class="sheet" contenteditable="true" spellcheck="true" lang="fr"><p><br></p></div>
-    </div>
-    <aside id="side" hidden>
-      <nav id="sidetabs">
-        <button data-tab="outline">Plan</button>
-        <button data-tab="comments">Commentaires</button>
-        <button data-tab="suggestions">Suggestions</button>
-        <button data-tab="versions">Versions</button>
-        <button data-tab="variables">Variables</button>
-      </nav>
-      <div id="sidebody"></div>
-    </aside>
-  </div>
+    <!-- ===== Accueil ===== -->
+    <section id="home" aria-label="Accueil">
+      <div id="home-scroll">
+        <header class="home-head">
+          <div class="home-brand"><span class="brand-tile"><svg class="ic"><use href="#i-feather"/></svg></span><span>Plume</span></div>
+          <label class="home-search"><svg class="ic"><use href="#i-search"/></svg><input id="home-q" type="search" placeholder="Rechercher dans vos documents récents" autocomplete="off" spellcheck="false" aria-label="Rechercher"></label>
+          <button type="button" class="avatar-btn" data-profile title="Compte et paramètres" aria-label="Compte et paramètres"><span class="avatar">?</span></button>
+        </header>
 
-  <footer id="status">
-    <span id="st-count">0 mot</span>
-    <span id="st-pages"></span>
-    <span id="st-lock"></span>
-    <span class="spacer"></span>
-    <span id="st-mode"></span>
-  </footer>
+        <section class="tpl-band">
+          <div class="tpl-inner">
+            <div class="tpl-head">
+              <h2>Commencer un nouveau document</h2>
+              <button type="button" id="tpl-toggle" class="flat">Galerie de modèles <svg class="ic sm"><use href="#i-chev-down"/></svg></button>
+            </div>
+            <div id="tpl-grid" class="tpl-grid collapsed"></div>
+          </div>
+        </section>
+
+        <section class="recent">
+          <div class="recent-head">
+            <h2>Documents récents</h2>
+            <div class="recent-tools">
+              <select id="home-sort" aria-label="Trier par">
+                <option value="recent">Dernière ouverture</option>
+                <option value="title">Titre (A à Z)</option>
+              </select>
+              <button type="button" id="home-view" class="icon-btn" title="Basculer entre grille et liste" aria-label="Basculer entre grille et liste"><svg class="ic"><use href="#i-rows"/></svg></button>
+              <button type="button" id="home-open" class="icon-btn" title="Ouvrir un fichier (Ctrl+O)" aria-label="Ouvrir un fichier"><svg class="ic"><use href="#i-folder"/></svg></button>
+            </div>
+          </div>
+          <div id="recent-list" class="grid"></div>
+        </section>
+      </div>
+    </section>
+
+    <!-- ===== Document ===== -->
+    <section id="docview" hidden aria-label="Document">
+      <div id="dochead">
+        <button type="button" id="doc-logo" title="Retour à l'accueil" aria-label="Retour à l'accueil"><span class="brand-tile sm"><svg class="ic"><use href="#i-feather"/></svg></span></button>
+        <nav id="menubar" role="menubar" aria-label="Menus"></nav>
+        <div class="title-row">
+          <input id="title" type="text" value="Sans titre" spellcheck="false" aria-label="Titre du document">
+          <span id="savestate">Prêt</span>
+        </div>
+        <div class="head-right">
+          <button type="button" id="btn-expand" class="icon-btn" title="Réafficher les menus et la barre d'outils (Ctrl+Maj+F)" aria-label="Réafficher les menus"><svg class="ic"><use href="#i-chev-down"/></svg></button>
+          <button type="button" id="btn-history" class="icon-btn" title="Historique des versions" aria-label="Historique des versions"><svg class="ic"><use href="#i-history"/></svg></button>
+          <button type="button" id="btn-comments" class="icon-btn" title="Commentaires" aria-label="Commentaires"><svg class="ic"><use href="#i-comment"/></svg></button>
+          <button type="button" id="btn-save" class="pill-primary" title="Enregistrer (Ctrl+S)"><svg class="ic sm"><use href="#i-save"/></svg><span>Enregistrer</span></button>
+          <button type="button" class="avatar-btn" data-profile title="Compte et paramètres" aria-label="Compte et paramètres"><span class="avatar">?</span></button>
+        </div>
+      </div>
+
+      <div id="toolbar" role="toolbar" aria-label="Mise en forme">
+        <div id="tb-tools">
+          <div class="grp">
+            <button type="button" data-cmd="undo" title="Annuler (Ctrl+Z)"><svg class="ic"><use href="#i-undo"/></svg></button>
+            <button type="button" data-cmd="redo" title="Rétablir (Ctrl+Y)"><svg class="ic"><use href="#i-redo"/></svg></button>
+            <button type="button" data-act="print" title="Imprimer (Ctrl+P)"><svg class="ic"><use href="#i-print"/></svg></button>
+            <button type="button" data-act="spell" id="tb-spell" title="Correcteur orthographique"><svg class="ic"><use href="#i-spell"/></svg></button>
+            <select id="tb-zoom" title="Zoom de la page" aria-label="Zoom">
+              <option value="50">50 %</option><option value="75">75 %</option><option value="90">90 %</option>
+              <option value="100" selected>100 %</option><option value="125">125 %</option><option value="150">150 %</option><option value="200">200 %</option>
+            </select>
+          </div>
+          <div class="grp">
+            <select id="tb-block" title="Style de paragraphe" aria-label="Style de paragraphe">
+              <option value="p">Texte normal</option>
+              <option value="h1">Titre 1</option>
+              <option value="h2">Titre 2</option>
+              <option value="h3">Titre 3</option>
+              <option value="blockquote">Citation</option>
+            </select>
+            <select id="tb-font" title="Police" aria-label="Police">
+              <option>Calibri</option><option>Arial</option><option>Times New Roman</option>
+              <option>Georgia</option><option>Verdana</option><option>Segoe UI</option><option>Courier New</option>
+            </select>
+          </div>
+          <div class="grp">
+            <button type="button" data-size="-1" title="Réduire la taille de police" class="sz"><svg class="ic"><use href="#i-minus"/></svg></button>
+            <input id="tb-size" type="text" inputmode="numeric" value="11" title="Taille de police (pt)" aria-label="Taille de police">
+            <button type="button" data-size="1" title="Augmenter la taille de police" class="sz"><svg class="ic"><use href="#i-plus"/></svg></button>
+          </div>
+          <div class="grp">
+            <button type="button" data-cmd="bold" title="Gras (Ctrl+B)"><svg class="ic"><use href="#i-bold"/></svg></button>
+            <button type="button" data-cmd="italic" title="Italique (Ctrl+I)"><svg class="ic"><use href="#i-italic"/></svg></button>
+            <button type="button" data-cmd="underline" title="Souligné (Ctrl+U)"><svg class="ic"><use href="#i-underline"/></svg></button>
+            <button type="button" data-cmd="strikeThrough" title="Barré"><svg class="ic"><use href="#i-strike"/></svg></button>
+            <label class="colorbtn" title="Couleur du texte"><svg class="ic"><use href="#i-color"/></svg><i id="ico-color"></i><input type="color" id="tb-color" value="#d93025"></label>
+            <label class="colorbtn" title="Surlignage"><svg class="ic"><use href="#i-hilite"/></svg><i id="ico-hilite"></i><input type="color" id="tb-hilite" value="#fff475"></label>
+          </div>
+          <div class="grp">
+            <button type="button" data-act="link" title="Insérer un lien (Ctrl+K)"><svg class="ic"><use href="#i-link"/></svg></button>
+            <button type="button" data-act="comment" title="Ajouter un commentaire (Ctrl+Alt+M)"><svg class="ic"><use href="#i-comment"/></svg></button>
+            <button type="button" data-act="image" title="Insérer une image"><svg class="ic"><use href="#i-image"/></svg></button>
+            <button type="button" data-act="at" title="Puces intelligentes et blocs (ou tapez @)"><svg class="ic"><use href="#i-at"/></svg></button>
+          </div>
+          <div class="grp">
+            <button type="button" data-cmd="justifyLeft" title="Aligner à gauche"><svg class="ic"><use href="#i-al-left"/></svg></button>
+            <button type="button" data-cmd="justifyCenter" title="Centrer"><svg class="ic"><use href="#i-al-center"/></svg></button>
+            <button type="button" data-cmd="justifyRight" title="Aligner à droite"><svg class="ic"><use href="#i-al-right"/></svg></button>
+            <button type="button" data-cmd="justifyFull" title="Justifier"><svg class="ic"><use href="#i-al-justify"/></svg></button>
+          </div>
+          <div class="grp">
+            <button type="button" data-cmd="insertUnorderedList" title="Liste à puces"><svg class="ic"><use href="#i-list-bullet"/></svg></button>
+            <button type="button" data-cmd="insertOrderedList" title="Liste numérotée"><svg class="ic"><use href="#i-list-number"/></svg></button>
+            <button type="button" data-act="checklist" title="Liste de tâches"><svg class="ic"><use href="#i-checklist"/></svg></button>
+            <button type="button" data-cmd="outdent" title="Diminuer le retrait"><svg class="ic"><use href="#i-indent-dec"/></svg></button>
+            <button type="button" data-cmd="indent" title="Augmenter le retrait"><svg class="ic"><use href="#i-indent-inc"/></svg></button>
+          </div>
+          <div class="grp">
+            <button type="button" data-act="table" title="Insérer un tableau"><svg class="ic"><use href="#i-table"/></svg></button>
+            <button type="button" data-act="pagebreak" title="Saut de page"><svg class="ic"><use href="#i-pagebreak"/></svg></button>
+            <button type="button" data-cmd="removeFormat" title="Effacer la mise en forme (Ctrl+\)"><svg class="ic"><use href="#i-clear"/></svg></button>
+            <button type="button" data-act="find" title="Rechercher et remplacer (Ctrl+F)"><svg class="ic"><use href="#i-search"/></svg></button>
+            <button type="button" data-act="dlp" title="Vérifier les données sensibles"><svg class="ic"><use href="#i-shield"/></svg></button>
+          </div>
+          <div class="grp" id="tablebar" hidden>
+            <button type="button" class="txt" data-tbl="addRow" title="Ajouter une ligne sous la ligne courante">+ ligne</button>
+            <button type="button" class="txt" data-tbl="addCol" title="Ajouter une colonne à droite">+ colonne</button>
+            <button type="button" class="txt" data-tbl="delRow" title="Supprimer la ligne">− ligne</button>
+            <button type="button" class="txt" data-tbl="delCol" title="Supprimer la colonne">− colonne</button>
+            <button type="button" class="txt" data-tbl="delTable" title="Supprimer le tableau">Supprimer le tableau</button>
+          </div>
+        </div>
+        <button type="button" id="tb-more" title="Plus d'outils" aria-label="Plus d'outils" hidden><svg class="ic"><use href="#i-more"/></svg></button>
+        <button type="button" id="modebtn" title="Mode : édition, suggestion ou lecture seule" aria-haspopup="menu">
+          <svg class="ic" id="mode-ic"><use href="#i-edit"/></svg><span id="mode-label">Édition</span><svg class="ic sm"><use href="#i-chev-down"/></svg>
+        </button>
+      </div>
+
+      <div id="workspace">
+        <aside id="outline" hidden aria-label="Plan du document">
+          <div class="side-head"><b>Plan du document</b><button type="button" class="icon-btn" id="outline-close" title="Fermer le plan" aria-label="Fermer le plan"><svg class="ic"><use href="#i-close"/></svg></button></div>
+          <div id="outline-body"></div>
+        </aside>
+
+        <div id="canvas">
+          <div id="scroller">
+            <div id="page" class="sheet" contenteditable="true" spellcheck="true" lang="fr"><p><br></p></div>
+          </div>
+          <div id="findbar" hidden>
+            <input id="find-q" type="text" placeholder="Rechercher" spellcheck="false">
+            <input id="find-r" type="text" placeholder="Remplacer par" spellcheck="false">
+            <button id="find-prev" title="Précédent">▲</button>
+            <button id="find-next" title="Suivant">▼</button>
+            <button id="find-rep">Remplacer</button>
+            <button id="find-all">Tout remplacer</button>
+            <span id="find-count"></span>
+            <button id="find-close" title="Fermer">✕</button>
+          </div>
+        </div>
+
+        <aside id="side" hidden aria-label="Panneau latéral">
+          <nav id="sidetabs">
+            <div class="seg side-seg">
+              <button type="button" data-tab="comments">Commentaires</button>
+              <button type="button" data-tab="suggestions">Suggestions</button>
+              <button type="button" data-tab="versions">Versions</button>
+              <button type="button" data-tab="variables">Variables</button>
+            </div>
+            <button type="button" class="icon-btn" id="side-close" title="Fermer le panneau" aria-label="Fermer le panneau"><svg class="ic"><use href="#i-close"/></svg></button>
+          </nav>
+          <div id="sidebody"></div>
+        </aside>
+      </div>
+
+      <footer id="status">
+        <span id="st-count">0 mot</span>
+        <span id="st-pages"></span>
+        <span id="st-lock"></span>
+        <span class="spacer"></span>
+        <span id="st-mode"></span>
+      </footer>
+    </section>
+  </main>
 </div>
 
-<div id="findbar" hidden>
-  <input id="find-q" type="text" placeholder="Rechercher" spellcheck="false">
-  <input id="find-r" type="text" placeholder="Remplacer par" spellcheck="false">
-  <button id="find-prev" title="Précédent">▲</button>
-  <button id="find-next" title="Suivant">▼</button>
-  <button id="find-rep">Remplacer</button>
-  <button id="find-all">Tout remplacer</button>
-  <span id="find-count"></span>
-  <button id="find-close" title="Fermer">✕</button>
-</div>
 <div id="atmenu" hidden role="listbox"></div>
 <div id="tip" hidden></div>
 <div id="toast" hidden></div>
+<div id="pop"></div>
 
 <script src="ui.js"></script>
+<script src="settings.js"></script>
 <script src="docx.js"></script>
 <script src="editor.js"></script>
 <script src="review.js"></script>
 <script src="store.js"></script>
 <script src="panels.js"></script>
 <script src="dlp.js"></script>
+<script src="templates.js"></script>
 <script src="app.js"></script>
+<script src="menus.js"></script>
+<script src="home.js"></script>
+<script src="start.js"></script>
 </body>
 </html>

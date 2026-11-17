@@ -34,7 +34,7 @@
       else if (v === true) el.setAttribute(k, '');
       else el.setAttribute(k, v);
     }
-    for (const kid of kids.flat()) {
+    for (const kid of kids.flat(Infinity)) {
       if (kid == null || kid === false) continue;
       el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
     }
@@ -118,6 +118,80 @@
     const r = await P.modal({ title, message, ok: okLabel || 'OK' });
     return !!r;
   };
+
+  // ---------- Fenêtres contextuelles (menus, carte de profil…) ----------
+  /**
+   * P.pop.open(element, {anchor, align, x, y, onClose, onKey}) : une seule fenêtre contextuelle à la fois.
+   * Elle se ferme au clic à l'extérieur, avec Échap ou quand la fenêtre perd le focus.
+   * P.pop.add(element) rattache un élément supplémentaire (sous-menu) qui sera retiré en même temps.
+   */
+  P.pop = (function () {
+    let cur = null;
+    const layer = () => P.$('#pop');
+
+    function close() {
+      if (!cur) return;
+      const c = cur;
+      cur = null;
+      c.els.forEach((e) => e.remove());
+      document.removeEventListener('mousedown', c.onDown, true);
+      document.removeEventListener('keydown', c.onKey, true);
+      window.removeEventListener('blur', c.onBlur);
+      window.removeEventListener('resize', c.onBlur);
+      if (c.anchor && c.anchor.setAttribute) c.anchor.setAttribute('aria-expanded', 'false');
+      if (c.onClose) c.onClose();
+    }
+
+    function place(el, o) {
+      el.style.visibility = 'hidden';
+      const w = el.offsetWidth, hgt = el.offsetHeight;
+      let x = o.x, y = o.y;
+      if (o.anchor) {
+        const r = o.anchor.getBoundingClientRect();
+        x = o.align === 'right' ? r.right - w : r.left;
+        y = r.bottom + 4;
+      }
+      x = Math.max(8, Math.min(x == null ? 8 : x, window.innerWidth - w - 8));
+      y = Math.max(8, Math.min(y == null ? 8 : y, window.innerHeight - hgt - 8));
+      el.style.left = x + 'px';
+      el.style.top = y + 'px';
+      el.style.visibility = '';
+    }
+
+    function open(el, o) {
+      o = o || {};
+      close();
+      layer().append(el);
+      place(el, o);
+      const c = { els: [el], anchor: o.anchor || null, onClose: o.onClose };
+      c.onDown = (e) => {
+        if (e.target.closest && (e.target.closest('#pop > *') || (c.anchor && c.anchor.contains(e.target)))) return;
+        close();
+      };
+      c.onKey = (e) => {
+        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); return; }
+        if (o.onKey) o.onKey(e);
+      };
+      c.onBlur = () => close();
+      document.addEventListener('mousedown', c.onDown, true);
+      document.addEventListener('keydown', c.onKey, true);
+      window.addEventListener('blur', c.onBlur);
+      window.addEventListener('resize', c.onBlur);
+      if (c.anchor && c.anchor.setAttribute) c.anchor.setAttribute('aria-expanded', 'true');
+      cur = c;
+      return el;
+    }
+
+    return {
+      open,
+      close,
+      place,
+      add(el) { if (cur) { layer().append(el); cur.els.push(el); } return el; },
+      drop(el) { if (cur) { cur.els = cur.els.filter((e) => e !== el); } el.remove(); },
+      isOpen: () => !!cur,
+      anchor: () => (cur ? cur.anchor : null),
+    };
+  })();
 
   // ---------- Assainissement du HTML ----------
   const DROP = new Set(['SCRIPT', 'STYLE', 'IFRAME', 'OBJECT', 'EMBED', 'LINK', 'META', 'FORM', 'SVG', 'MATH', 'BASE', 'NOSCRIPT', 'TEMPLATE', 'FRAME', 'FRAMESET', 'APPLET', 'TITLE', 'HEAD']);
@@ -204,6 +278,7 @@
     if (sel.rangeCount && P.editor.contains(sel.anchorNode)) return sel.getRangeAt(0);
     return savedRange;
   };
+  P.resetSel = function () { savedRange = null; };
   document.addEventListener('selectionchange', P.saveSel);
 
   /** Nœuds texte contenus dans une plage, avec les décalages utiles. */

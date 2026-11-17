@@ -14,6 +14,18 @@ contextBridge.exposeInMainWorld('native', {
   pickFile: () => call('dialog:pickFile'),
   pickImage: () => call('dialog:pickImage'),
   openExternal: (kind, value) => call('shell:open', { kind, value }),
+  setTheme: (t) => call('win:theme', t),
+  setUiZoom: (f) => call('win:uiZoom', f),
+  toggleFullscreen: () => call('win:fullscreen'),
+  setSpellLangs: (mode) => call('spell:langs', mode),
+  editCmd: (cmd) => call('edit:cmd', cmd),
+  recents: {
+    list: () => call('recents:list'),
+    add: (entry) => call('recents:add', entry),
+    remove: (p) => call('recents:remove', p),
+    clear: () => call('recents:clear'),
+    open: (p) => call('recents:open', p),
+  },
   recovery: {
     write: (text) => call('recovery:write', text),
     read: () => call('recovery:read'),
