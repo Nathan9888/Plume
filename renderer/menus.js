@@ -170,6 +170,7 @@
         { label: 'Microsoft Word (.docx)', action: () => A().exportDocx() },
         { label: 'Document PDF (.pdf)', action: () => A().exportPdf() },
         { label: 'Page Web (.html)', action: () => A().exportHtml() },
+        { label: 'Markdown (.md)', action: () => A().exportMd() },
       ] },
       { label: 'Historique des versions', icon: 'i-history', items: [
         { label: 'Nommer la version actuelle…', disabled: ro, action: () => P.nameVersion() },
@@ -201,6 +202,7 @@
       '-',
       { label: 'Zoom', items: [50, 75, 90, 100, 125, 150, 200].map((z) => ({ label: z + ' %', checked: () => C().get('pageZoom') === z, action: () => C().set('pageZoom', z) })) },
       '-',
+      { label: 'Mode concentration', hint: 'Ctrl+Maj+C', desc: 'Masque tout sauf la page, avec le temps de lecture', checked: () => P.focus.isOn(), action: () => P.focus.toggle() },
       { label: 'Mode compact', hint: 'Ctrl+Maj+F', checked: () => C().get('compact'), action: () => C().set('compact', !C().get('compact')) },
       { label: 'Plein écran', hint: 'F11', icon: 'i-fullscreen', action: () => A().toggleFullscreen() },
     ] },
@@ -213,8 +215,11 @@
       { label: 'Lien…', hint: 'Ctrl+K', icon: 'i-link', disabled: ro, action: act('link') },
       { label: 'Commentaire', hint: 'Ctrl+Alt+M', icon: 'i-comment', disabled: ro, action: act('comment') },
       { label: 'Liste de tâches', icon: 'i-checklist', disabled: ro, action: act('checklist') },
+      { label: 'Encadré', disabled: ro, items: P.CALLOUTS.map((c) => ({ label: c.label, disabled: ro, checked: () => P.calloutKind() === c.kind, action: () => P.insertCallout(c.kind) })) },
+      { label: 'Sommaire', hint: 'Automatique', disabled: ro, action: act('toc') },
       '-',
       { label: 'Puces intelligentes et blocs', hint: '@', icon: 'i-at', disabled: ro, action: act('at') },
+      { label: 'Remplir les champs…', disabled: () => ro() || !Object.keys(state.variables).length, action: act('fields') },
     ] },
     { label: 'Format', items: () => [
       { label: 'Texte', items: [
@@ -248,6 +253,8 @@
       { label: 'Effacer la mise en forme', hint: 'Ctrl+\\', icon: 'i-clear', disabled: ro, action: fmt('removeFormat') },
     ] },
     { label: 'Outils', items: () => [
+      { label: 'Palette de commandes…', hint: 'Ctrl+Maj+P', icon: 'i-search', action: () => P.palette.open() },
+      '-',
       { label: 'Correcteur orthographique', icon: 'i-spell', checked: () => C().get('spell'), action: () => C().set('spell', !C().get('spell')) },
       { label: 'Statistiques du document…', action: stats },
       { label: 'Rechercher et remplacer…', hint: 'Ctrl+H', icon: 'i-search', action: () => P.openFind() },

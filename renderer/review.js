@@ -35,34 +35,128 @@
   let filter = 'open';
   let activeId = null;
 
-  P.addComment = async function () {
+  /** Surligne en ambre le texte visé pendant qu'on rédige un commentaire ou choisit un émoji (sans toucher au document). */
+  P.pending = {
+    set(range) { try { if (window.Highlight && CSS.highlights) CSS.highlights.set('plume-pending', new Highlight(range)); } catch (_) { /* non pris en charge */ } },
+    clear() { try { if (window.CSS && CSS.highlights) CSS.highlights.delete('plume-pending'); } catch (_) { /* ignoré */ } },
+  };
+
+  /** Rectangle de la dernière ligne d'une plage, pour placer une fenêtre juste en dessous. */
+  P.rangeAnchor = function (range) {
+    const rects = range.getClientRects();
+    const r = rects.length ? rects[rects.length - 1] : range.getBoundingClientRect();
+    return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+  };
+
+  function wrapRange(range, extraClass) {
+    const segs = range && !range.collapsed ? P.textSegments(range) : [];
+    if (!segs.length) return null;
+    const id = P.uid();
+    const spans = P.wrapSegments(segs, () => h('span', { class: 'cmt' + (extraClass ? ' ' + extraClass : ''), 'data-cid': id }));
+    return { id, spans };
+  }
+
+  /** Crée un commentaire sur la plage donnée. */
+  P.createComment = function (range, text, assignee) {
+    const w = wrapRange(range);
+    if (!w) { P.toast('La sélection a changé : le commentaire n’a pas été ajouté.'); return null; }
+    state.comments.push({ id: w.id, text, author: author(), date: nowIso(), resolved: false, assignee: assignee || '', replies: [] });
+    P.markDirty();
+    filter = filter === 'resolved' ? 'open' : filter;
+    return w.id;
+  };
+
+  /** Réaction par émoji : un commentaire sans texte, affiché sous forme de pastille collée au texte. */
+  P.addReaction = function (range, emoji) {
+    if (readOnly() || !emoji) return;
+    const w = wrapRange(range, 'react');
+    if (!w) { P.toast('Sélectionnez d’abord le texte auquel réagir.'); return; }
+    w.spans[w.spans.length - 1].setAttribute('data-emoji', emoji);
+    state.comments.push({ id: w.id, text: emoji, emoji, author: author(), date: nowIso(), resolved: false, assignee: '', replies: [] });
+    P.markDirty();
+    if (document.querySelector('#sidebody .thread')) P.renderPanel();
+  };
+
+  const initials = (name) => String(name || '?').trim().split(/\s+/).slice(0, 2).map((x) => x[0] || '').join('').toUpperCase() || '?';
+
+  /** Zone de commentaire flottante (comme dans Google Docs) : auteur, champ de texte, Annuler / Commenter. @ propose des contacts. */
+  function composeComment() {
     if (readOnly()) return;
     P.saveSel();
     const r0 = P.currentRange();
     if (!r0 || r0.collapsed || !P.textSegments(r0).length) { P.toast('Sélectionnez d’abord le texte à commenter.'); return; }
-    const r = await P.modal({
-      title: 'Nouveau commentaire',
-      fields: [
-        { id: 'text', label: 'Commentaire', type: 'textarea', rows: 4 },
-        { id: 'assignee', label: 'Assigner à (facultatif)', list: contacts().map((c) => c.name) },
-      ],
-      ok: 'Commenter',
+    const range = r0.cloneRange();
+    const anchor = P.rangeAnchor(range);
+    const names = contacts().map((c) => c.name).filter(Boolean);
+    let list = null, items = [], hl = 0;
+
+    const ta = h('textarea', { class: 'cp-text', rows: 2, placeholder: 'Tapez un commentaire ou ajoutez d’autres personnes avec @', 'aria-label': 'Commentaire', spellcheck: 'true' });
+    const go = h('button', { type: 'button', class: 'cp-go', text: 'Commenter', disabled: true });
+    const menu = h('div', { class: 'cp-men', hidden: true, role: 'listbox' });
+    const card = h('div', { class: 'cmt-pop', role: 'dialog', 'aria-label': 'Nouveau commentaire' },
+      h('div', { class: 'cp-head' }, h('span', { class: 'cp-av', text: initials(author()) }), h('span', { class: 'cp-name', text: author() })),
+      ta, menu,
+      h('div', { class: 'cp-actions' }, h('button', { type: 'button', class: 'cp-cancel', text: 'Annuler', onclick: () => P.pop.close() }), go));
+
+    const mentionAt = () => {
+      const upto = ta.value.slice(0, ta.selectionStart);
+      const m = /(^|\s)@([^\s@]*)$/.exec(upto);
+      return m ? { start: upto.length - m[2].length - 1, q: m[2] } : null;
+    };
+    const closeMenu = () => { menu.hidden = true; items = []; };
+    const showMenu = () => {
+      const m = mentionAt();
+      if (!m) { closeMenu(); return; }
+      const q = m.q.toLowerCase();
+      items = names.filter((n) => n.toLowerCase().includes(q)).slice(0, 5);
+      hl = 0;
+      menu.replaceChildren();
+      if (!names.length) menu.append(h('div', { class: 'cp-none', text: 'Aucun contact enregistré (puce @ Personne).' }));
+      else if (!items.length) menu.append(h('div', { class: 'cp-none', text: 'Aucun contact ne correspond.' }));
+      items.forEach((n, i) => menu.append(h('div', { class: 'cp-opt' + (i === hl ? ' sel' : ''), role: 'option', text: n,
+        onmousedown: (e) => { e.preventDefault(); chooseMention(n); } })));
+      menu.hidden = false;
+    };
+    const chooseMention = (name) => {
+      const m = mentionAt();
+      if (!m) return;
+      ta.value = ta.value.slice(0, m.start) + '@' + name + ' ' + ta.value.slice(ta.selectionStart);
+      const pos = m.start + name.length + 2;
+      ta.setSelectionRange(pos, pos);
+      closeMenu();
+      sync();
+    };
+    const sync = () => { go.disabled = !ta.value.trim(); ta.style.height = 'auto'; ta.style.height = Math.min(160, ta.scrollHeight) + 'px'; };
+    const submit = () => {
+      const text = ta.value.trim();
+      if (!text) return;
+      const lower = text.toLowerCase();
+      const m = /@([\p{L}][\p{L}\p{N}.'’-]*)/u.exec(text);
+      const assignee = names.find((n) => lower.includes('@' + n.toLowerCase())) || (m ? m[1] : '');
+      P.pop.close();
+      const id = P.createComment(range, text, assignee);
+      if (id) { P.showPanel('comments'); P.focusComment(id); }
+    };
+    ta.addEventListener('input', () => { sync(); showMenu(); });
+    ta.addEventListener('keydown', (e) => {
+      if (!menu.hidden && items.length) {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          hl = (hl + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length;
+          Array.from(menu.children).forEach((c, i) => c.classList.toggle('sel', i === hl));
+          return;
+        }
+        if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); chooseMention(items[hl]); return; }
+      }
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submit(); }
     });
-    if (!r || !r.values.text.trim()) return;
-    const range = P.currentRange();
-    const segs = range && !range.collapsed ? P.textSegments(range) : [];
-    if (!segs.length) { P.toast('La sélection a changé : le commentaire n’a pas été ajouté.'); return; }
-    const id = P.uid();
-    P.wrapSegments(segs, () => h('span', { class: 'cmt', 'data-cid': id }));
-    state.comments.push({
-      id, text: r.values.text.trim(), author: author(), date: nowIso(),
-      resolved: false, assignee: r.values.assignee.trim(), replies: [],
-    });
-    P.markDirty();
-    filter = filter === 'resolved' ? 'open' : filter;
-    P.showPanel('comments');
-    P.focusComment(id);
-  };
+    go.addEventListener('click', submit);
+
+    P.pending.set(range);
+    P.pop.open(card, { x: anchor.left, y: anchor.bottom + 10, onClose: () => { P.pending.clear(); } });
+    ta.focus();
+  }
+  P.addComment = composeComment;
 
   P.focusComment = function (id, fromEditor) {
     activeId = id;
@@ -119,14 +213,15 @@
     card.append(orphan
       ? h('div', { class: 'quote muted', text: 'Le texte commenté a été supprimé.' })
       : h('blockquote', { class: 'quote', text: '« ' + short(quote, 120) + ' »' }));
-    card.append(h('div', { class: 'txt', text: c.text }));
+    if (c.emoji) card.append(h('div', { class: 'txt react-txt' }, h('span', { class: 'react-em', text: c.emoji }), ' a réagi'));
+    else card.append(h('div', { class: 'txt', text: c.text }));
     if (c.assignee) card.append(h('div', { class: 'assign' }, h('span', { class: 'pill', text: 'Assigné à ' + c.assignee })));
     for (const rep of c.replies || []) {
       card.append(h('div', { class: 'reply' },
         h('div', { class: 'head' }, h('span', { class: 'who', text: rep.author || '—' }), h('span', { class: 'when', text: fmtDate(rep.date) })),
         h('div', { class: 'txt', text: rep.text })));
     }
-    if (!c.resolved && !ro) {
+    if (!c.resolved && !ro && !c.emoji) {
       const send = () => {
         const v = input.value.trim();
         if (!v) return;
@@ -140,13 +235,13 @@
     }
     const acts = h('div', { class: 'actions' });
     if (!ro) {
-      acts.append(h('button', { class: 'sm', type: 'button', text: c.resolved ? 'Rouvrir' : 'Résoudre', onclick: () => {
+      if (!c.emoji) acts.append(h('button', { class: 'sm', type: 'button', text: c.resolved ? 'Rouvrir' : 'Résoudre', onclick: () => {
         c.resolved = !c.resolved;
         anchors(c.id).forEach((n) => n.classList.toggle('resolved', c.resolved));
         P.markDirty();
         P.renderPanel();
       } }));
-      acts.append(h('button', { class: 'sm', type: 'button', text: c.assignee ? 'Réassigner' : 'Assigner', onclick: () => assign(c) }));
+      if (!c.emoji) acts.append(h('button', { class: 'sm', type: 'button', text: c.assignee ? 'Réassigner' : 'Assigner', onclick: () => assign(c) }));
       if (c.assignee) acts.append(h('button', { class: 'sm', type: 'button', text: '✉ Notifier', title: 'Ouvre un courriel dans votre messagerie', onclick: () => notify(c) }));
       acts.append(h('button', { class: 'sm danger', type: 'button', text: 'Supprimer', onclick: () => removeComment(c) }));
     }

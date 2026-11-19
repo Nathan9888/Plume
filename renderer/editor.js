@@ -65,7 +65,7 @@
     // Chromium place mal les éléments contenteditable="false" insérés en fin de paragraphe (ils sortent du <p>
     // et l'espace final disparaît) : on les insère comme éléments ordinaires, puis on remet l'attribut.
     document.execCommand('insertHTML', false, String(html).replace(/ contenteditable="false"/g, ''));
-    ed.querySelectorAll('.chip, .pagebreak, .noexport').forEach((n) => { if (n.getAttribute('contenteditable') !== 'false') n.setAttribute('contenteditable', 'false'); });
+    ed.querySelectorAll('.chip, .pagebreak, .noexport, .toc').forEach((n) => { if (n.getAttribute('contenteditable') !== 'false') n.setAttribute('contenteditable', 'false'); });
     fixChecklists();
     P.markDirty();
     P.updateCounts();
@@ -155,13 +155,22 @@
   });
 
   // ---------- Statistiques ----------
+  /** Temps de lecture estimé (≈ 230 mots par minute). */
+  /** Nombre de mots du document (innerText : les blocs voisins restent séparés ; le sommaire généré n'est pas compté). */
+  P.wordCount = () => {
+    let t = ed.innerText || '';
+    ed.querySelectorAll('.toc').forEach((n) => { t = t.replace(n.innerText || '', ' '); });
+    return (t.match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu) || []).length;
+  };
+  P.readingLabel = (words) => (words < 60 ? 'lecture : moins d’1 min' : `lecture ≈ ${Math.max(1, Math.round(words / 230))} min`);
   let countTimer = null;
   P.updateCounts = function () {
     clearTimeout(countTimer);
     countTimer = setTimeout(() => {
       const text = ed.textContent || '';
-      const words = (text.match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu) || []).length;
-      $('#st-count').textContent = `${words} mot${words > 1 ? 's' : ''} · ${text.replace(/\s/g, '').length} caractères`;
+      const words = P.wordCount();
+      $('#st-count').textContent = `${words} mot${words > 1 ? 's' : ''} · ${text.replace(/\s/g, '').length} caractères · ${P.readingLabel(words)}`;
+      if (P.focusRefresh) P.focusRefresh();
       $('#st-pages').textContent = state.pageless ? '' : `≈ ${Math.max(1, Math.ceil((ed.offsetHeight - 192) / 864))} page(s)`;
     }, 150);
   };
@@ -222,20 +231,68 @@
     P.insertHTML(tableHTML(rows, cols) + '<p><br></p>');
   }
 
+  const cellsOf = (row) => Array.from(row.cells);
+  const colCount = (table) => Math.max(1, ...Array.from(table.rows).map((r) => cellsOf(r).reduce((n, c) => n + Math.max(1, c.colSpan || 1), 0)));
+  const isHeaderRow = (row) => !!row && row.cells.length > 0 && cellsOf(row).every((c) => c.tagName === 'TH');
+  const emptyLike = (c) => { const n = document.createElement(c.tagName === 'TH' ? 'td' : c.tagName); n.innerHTML = '<br>'; return n; };
+
+  function sortTable(table, cell, dir) {
+    if (Array.from(table.rows).some((r) => cellsOf(r).some((c) => c.colSpan > 1 || c.rowSpan > 1))) { P.toast('Le tri n’est pas possible dans un tableau qui contient des cellules fusionnées.'); return; }
+    const idx = cell.cellIndex;
+    const body = cell.parentElement.parentElement;
+    const rows = Array.from(body.rows).filter((r) => !isHeaderRow(r));
+    const key = (r) => (r.cells[idx] ? r.cells[idx].textContent.trim() : '');
+    const cmp = new Intl.Collator('fr', { numeric: true, sensitivity: 'base' });
+    rows.slice().sort((a, b) => dir * cmp.compare(key(a), key(b))).forEach((r) => body.append(r));
+  }
+
+  async function tableOptions(table) {
+    const cls = table.classList.contains('tbl-none') ? 'none' : table.classList.contains('tbl-thick') ? 'thick' : 'thin';
+    const r = await P.modal({
+      title: 'Options du tableau',
+      fields: [
+        { id: 'border', label: 'Bordures', type: 'select', options: [{ value: 'thin', label: 'Fines' }, { value: 'thick', label: 'Épaisses' }, { value: 'none', label: 'Aucune' }], value: cls },
+        { id: 'width', label: 'Largeur', type: 'select', options: [{ value: 'auto', label: 'Selon le contenu' }, { value: 'full', label: 'Pleine largeur de la page' }], value: table.getAttribute('width') === '100%' ? 'full' : 'auto' },
+        { id: 'head', label: 'Première ligne', type: 'select', options: [{ value: 'no', label: 'Ligne ordinaire' }, { value: 'yes', label: 'Ligne de titre (en gras, fond gris)' }], value: isHeaderRow(table.rows[0]) ? 'yes' : 'no' },
+      ],
+      ok: 'Appliquer',
+    });
+    if (!r) return;
+    table.classList.remove('tbl-none', 'tbl-thick');
+    if (r.values.border === 'none') table.classList.add('tbl-none');
+    else if (r.values.border === 'thick') table.classList.add('tbl-thick');
+    if (!table.getAttribute('class')) table.removeAttribute('class');
+    if (r.values.width === 'full') table.setAttribute('width', '100%'); else table.removeAttribute('width');
+    const first = table.rows[0];
+    const wantHead = r.values.head === 'yes';
+    if (first && wantHead !== isHeaderRow(first)) {
+      cellsOf(first).forEach((c) => {
+        const n = document.createElement(wantHead ? 'th' : 'td');
+        Array.from(c.attributes).forEach((a) => n.setAttribute(a.name, a.value));
+        while (c.firstChild) n.append(c.firstChild);
+        c.replaceWith(n);
+      });
+    }
+    P.markDirty();
+  }
+
   function tableOp(op) {
     P.restoreSel();
     const cell = closestFromSel('td, th');
     const table = closestFromSel('table');
     if (!cell || !table) return;
     const row = cell.parentElement;
-    const emptyLike = (c) => { const n = document.createElement(c.tagName === 'TH' ? 'td' : c.tagName); n.innerHTML = '<br>'; return n; };
-    if (op === 'addRow') {
+    if (op === 'addRow' || op === 'addRowAbove') {
       const nr = document.createElement('tr');
-      Array.from(row.cells).forEach((c) => nr.append(emptyLike(c)));
-      row.after(nr);
-    } else if (op === 'addCol') {
+      cellsOf(row).forEach((c) => { const n = emptyLike(c); if (c.colSpan > 1) n.colSpan = c.colSpan; nr.append(n); });
+      if (op === 'addRow') row.after(nr); else row.before(nr);
+    } else if (op === 'addHeader') {
+      const nr = document.createElement('tr');
+      for (let i = 0; i < colCount(table); i++) { const th = document.createElement('th'); th.innerHTML = '<br>'; nr.append(th); }
+      (table.tBodies[0] || table).prepend(nr);
+    } else if (op === 'addCol' || op === 'addColLeft') {
       const idx = cell.cellIndex;
-      Array.from(table.rows).forEach((r) => { const c = r.cells[idx]; if (c) c.after(emptyLike(c)); });
+      Array.from(table.rows).forEach((r) => { const c = r.cells[idx]; if (c) { if (op === 'addCol') c.after(emptyLike(c)); else c.before(emptyLike(c)); } });
     } else if (op === 'delRow') {
       if (table.rows.length <= 1) table.remove(); else row.remove();
     } else if (op === 'delCol') {
@@ -244,8 +301,24 @@
       else Array.from(table.rows).forEach((r) => { if (r.cells[idx]) r.cells[idx].remove(); });
     } else if (op === 'delTable') {
       table.remove();
+    } else if (op === 'split') {
+      const n = Math.max(1, cell.colSpan || 1);
+      if (n > 1) { cell.removeAttribute('colspan'); for (let i = 1; i < n; i++) cell.after(emptyLike(cell)); }
+    } else if (op === 'sortAsc' || op === 'sortDesc') {
+      sortTable(table, cell, op === 'sortAsc' ? 1 : -1);
+    } else if (op === 'distCols') {
+      const n = colCount(table);
+      table.setAttribute('width', '100%');
+      Array.from(table.rows).forEach((r) => cellsOf(r).forEach((c) => c.setAttribute('width', (100 * Math.max(1, c.colSpan || 1) / n).toFixed(2) + '%')));
+    } else if (op === 'distRows') {
+      const m = Math.round(Math.max(...Array.from(table.rows).map((r) => r.getBoundingClientRect().height)));
+      Array.from(table.rows).forEach((r) => r.setAttribute('height', String(m)));
+    } else if (op === 'options') {
+      tableOptions(table);
+      return;
     }
     if (!ed.firstElementChild) ed.innerHTML = '<p><br></p>';
+    ensureTrailing();
     P.markDirty();
     P.updateCounts();
     updateToolbar();
@@ -253,6 +326,7 @@
 
   P.tableOp = tableOp;
   P.inTable = () => !!closestFromSel('td, th');
+  P.tableInfo = () => { const c = closestFromSel('td, th'); return c ? { merged: (c.colSpan || 1) > 1, hasHeader: isHeaderRow(c.closest('table').rows[0]) } : null; };
 
   // ---------- Insertions simples ----------
   async function insertLink() {
@@ -285,7 +359,7 @@
   }
 
   const actions = {
-    at: () => { P.saveSel(); openAtMenu(null); },
+    at: () => { P.saveSel(); openAtMenu(null, '@'); },
     link: insertLink,
     image: insertImage,
     table: insertTable,
@@ -293,6 +367,8 @@
     pagebreak: () => P.insertHTML('<div class="pagebreak" contenteditable="false"></div><p><br></p>'),
     checklist,
     comment: () => P.addComment && P.addComment(),
+    toc: insertToc,
+    fields: () => fillFields(),
     find: () => openFind(),
     dlp: () => P.runDlp && P.runDlp(false),
     print: () => P.app && P.app.print(),
@@ -458,44 +534,284 @@
     native.openExternal('mail', url);
   }
 
-  // ---------- Menu @ ----------
-  const AT_ITEMS = [
-    { group: 'Puces intelligentes', icon: '👤', label: 'Personne', hint: 'Carte de contact', run: insertPerson },
-    { group: 'Puces intelligentes', icon: '📅', label: "Date d'aujourd'hui", hint: '', run: () => insertDate(true) },
-    { group: 'Puces intelligentes', icon: '📅', label: 'Date…', hint: 'Choisir une date', run: () => insertDate(false) },
-    { group: 'Puces intelligentes', icon: '📎', label: 'Fichier', hint: 'Lien vers un fichier local', run: insertFile },
-    { group: 'Puces intelligentes', icon: '📍', label: 'Lieu', hint: 'Ouvre une carte', run: insertPlace },
-    { group: 'Puces intelligentes', icon: '🔗', label: 'Lien web', hint: '', run: insertUrlChip },
-    { group: 'Puces intelligentes', icon: '{ }', label: 'Variable', hint: 'Valeur mise à jour partout', run: insertVariable },
-    { group: 'Blocs', icon: '📝', label: 'Notes de réunion', hint: 'Date, participants, actions', run: blockMeeting },
-    { group: 'Blocs', icon: '✉', label: 'Brouillon de courriel', hint: 'S’ouvre dans votre messagerie', run: blockMail },
-    { group: 'Blocs', icon: '📊', label: 'Suivi de projet', hint: 'Tableau avec statuts', run: blockTracker },
-    { group: 'Blocs', icon: '☑', label: 'Liste de tâches', hint: '', run: checklist },
-    { group: 'Blocs', icon: '▦', label: 'Tableau', hint: '', run: insertTable },
-    { group: 'Blocs', icon: '⤓', label: 'Saut de page', hint: '', run: actions.pagebreak },
+  // ---------- Encadrés ----------
+  const CALLOUTS = [
+    { kind: 'info', label: 'Info', glyph: 'i', tone: '#0a84ff', kw: 'note remarque information' },
+    { kind: 'tip', label: 'Astuce', glyph: '✓', tone: '#30a14e', kw: 'conseil succes reussite ok' },
+    { kind: 'warn', label: 'Attention', glyph: '!', tone: '#ff9f0a', kw: 'avertissement prudence' },
+    { kind: 'danger', label: 'Important', glyph: '!', tone: '#ff453a', kw: 'danger erreur critique alerte' },
+  ];
+  P.CALLOUTS = CALLOUTS;
+  const calloutKind = (el) => (CALLOUTS.find((c) => el.classList.contains('callout-' + c.kind)) || CALLOUTS[0]).kind;
+  P.calloutKind = () => { const c = closestFromSel('.callout'); return c ? calloutKind(c) : null; };
+
+  function placeCaret(node, off) {
+    const r = document.createRange();
+    r.setStart(node, off);
+    r.collapse(true);
+    const s = window.getSelection();
+    s.removeAllRanges();
+    s.addRange(r);
+    P.saveSel();
+  }
+
+  /** Enfant direct de l'éditeur qui contient `node`. */
+  function topBlock(node) {
+    let n = node;
+    while (n && n.parentNode !== ed) n = n.parentNode;
+    return n && n.nodeType === 1 ? n : null;
+  }
+
+  function insertCallout(kind) {
+    if (readOnly()) return;
+    if (state.mode === 'suggest') { P.toast('Les encadrés ne sont pas disponibles en mode Suggestion.'); return; }
+    P.restoreSel();
+    const sel = window.getSelection();
+    if (!sel.rangeCount || !ed.contains(sel.anchorNode)) { P.toast('Placez d’abord le curseur dans le document.'); return; }
+    const existing = closestFromSel('.callout');
+    if (existing) {
+      if (calloutKind(existing) === kind) {
+        const first = existing.firstChild;
+        const kids = Array.from(existing.childNodes);
+        existing.replaceWith(...kids);
+        if (first) placeCaret(first, 0);
+      } else existing.className = 'callout callout-' + kind;
+      P.markDirty();
+      return;
+    }
+    if (closestFromSel('td, th, li')) { P.toast('Un encadré ne peut pas être placé dans un tableau ou une liste.'); return; }
+    const r = sel.getRangeAt(0);
+    const first = topBlock(r.startContainer), last = topBlock(r.endContainer);
+    if (!first || !last) return;
+    const run = [];
+    for (let n = first; n; n = n.nextElementSibling) { run.push(n); if (n === last) break; }
+    if (!run.length || run[run.length - 1] !== last || run.some((b) => !/^(P|H[1-6]|BLOCKQUOTE|PRE)$/.test(b.tagName))) {
+      P.toast('Un encadré ne peut entourer que du texte (paragraphes, titres, citations).');
+      return;
+    }
+    const only = run.length === 1 ? run[0] : null;
+    if (only && only.tagName === 'P' && !only.textContent && !only.querySelector('img, .chip')) {
+      // Paragraphe vide (cas du menu « / ») : insertion par execCommand, donc annulable avec Ctrl+Z
+      only.innerHTML = '<br>';
+      placeCaret(only, 0);
+      const after = only.nextElementSibling;
+      P.insertHTML(`<div class="callout callout-${kind}" data-new="1"><p><br></p></div>`);
+      const co = ed.querySelector('.callout[data-new]');
+      if (!co) return;
+      co.removeAttribute('data-new');
+      // Chromium laisse parfois un paragraphe vide après le bloc remplacé : on le retire
+      const extra = co.nextElementSibling;
+      if (extra && extra !== after && extra.tagName === 'P' && !extra.textContent && !extra.querySelector('img, .chip')) extra.remove();
+      placeCaret(co.firstElementChild, 0);
+    } else {
+      // Texte existant : on déplace les blocs dans l'encadré (insertHTML fusionnerait les paragraphes voisins)
+      const sc = r.startContainer, so = r.startOffset, ec = r.endContainer, eo = r.endOffset;
+      const co = document.createElement('div');
+      co.className = 'callout callout-' + kind;
+      first.before(co);
+      run.forEach((b) => co.append(b));
+      const nr = document.createRange();
+      nr.setStart(sc, so);
+      nr.setEnd(ec, eo);
+      sel.removeAllRanges();
+      sel.addRange(nr);
+      P.saveSel();
+    }
+    ensureTrailing();
+    P.markDirty();
+  }
+  P.insertCallout = insertCallout;
+
+  /** Garde toujours un paragraphe après un bloc final non éditable ou sans texte (encadré, sommaire, tableau…). */
+  function ensureTrailing() {
+    const last = ed.lastElementChild;
+    if (last && last.matches('.callout, .toc, table, .block-mail, .pagebreak, hr')) {
+      const p = document.createElement('p');
+      p.innerHTML = '<br>';
+      ed.append(p);
+    }
+  }
+
+  ed.addEventListener('keydown', (e) => {
+    if (e.defaultPrevented || menuOpen || readOnly() || e.isComposing || e.ctrlKey || e.metaKey || e.altKey || (e.key !== 'Enter' && e.key !== 'Backspace')) return;
+    const sel = window.getSelection();
+    if (!sel.rangeCount || !sel.isCollapsed) return;
+    const co = closestFromSel('.callout');
+    if (!co) return;
+    if (e.key === 'Enter' && !e.shiftKey) {
+      const blk = closestFromSel('.callout > p');
+      if (blk && blk === co.lastElementChild && !blk.textContent && !blk.querySelector('img, .chip')) {
+        e.preventDefault();
+        const next = document.createElement('p');
+        next.innerHTML = '<br>';
+        if (co.children.length === 1) co.replaceWith(next); else { blk.remove(); co.after(next); }
+        placeCaret(next, 0);
+        P.markDirty();
+      }
+    } else if (e.key === 'Backspace') {
+      const top = closestFromSel('.callout > *');
+      const pre = document.createRange();
+      pre.setStart(co, 0);
+      pre.setEnd(sel.anchorNode, sel.anchorOffset);
+      if (top && top === co.firstElementChild && pre.toString() === '' && !pre.cloneContents().querySelector('img, .chip, input')) {
+        e.preventDefault();
+        const kids = Array.from(co.childNodes);
+        const first = co.firstElementChild;
+        co.replaceWith(...kids);
+        if (first) placeCaret(first, 0);
+        P.markDirty();
+      }
+    }
+  });
+
+  // ---------- Sommaire automatique ----------
+  const tocHeadings = () => Array.from(ed.querySelectorAll('h1, h2, h3')).filter((n) => !n.closest('.toc') && n.textContent.trim());
+  const tocEntries = () => tocHeadings().map((n, i) => ({ i, lvl: +n.tagName[1], text: n.textContent.trim().replace(/\s+/g, ' ') }));
+  const tocBodyHTML = (list) => (list.length
+    ? list.map((x) => `<p class="toc-item lvl${x.lvl}" data-h="${x.i}">${esc(x.text)}</p>`).join('')
+    : '<p class="toc-empty">Aucun titre pour l’instant : utilisez « Titre 1 », « Titre 2 » ou « Titre 3 » et ils apparaîtront ici.</p>');
+
+  /** Met à jour tous les sommaires du document ; renvoie true si quelque chose a changé. */
+  function updateTocs() {
+    const list = tocEntries();
+    const sig = list.map((x) => `toc-item lvl${x.lvl}|${x.text}`).join('\n');
+    let changed = false;
+    ed.querySelectorAll('.toc').forEach((t) => {
+      const body = t.querySelector('.toc-body');
+      if (!body) return;
+      const cur = Array.from(body.children).map((p) => `${p.className}|${p.textContent}`).join('\n');
+      if (cur !== sig && !(list.length === 0 && body.querySelector('.toc-empty'))) { body.innerHTML = tocBodyHTML(list); changed = true; }
+    });
+    return changed;
+  }
+  P.updateTocs = updateTocs;
+
+  function insertToc() {
+    if (readOnly()) return;
+    const have = ed.querySelector('.toc');
+    if (have) { have.scrollIntoView({ block: 'center', behavior: 'smooth' }); P.toast('Ce document a déjà un sommaire : il se met à jour tout seul.'); return; }
+    P.insertHTML('<div class="toc" contenteditable="false" data-block="toc" title="Sommaire automatique"><div class="toc-title">Sommaire</div><div class="toc-body">' + tocBodyHTML(tocEntries()) + '</div></div><p><br></p>');
+    ensureTrailing();
+  }
+  let tocTimer = null;
+  const scheduleToc = () => { if (ed.querySelector('.toc')) { clearTimeout(tocTimer); tocTimer = setTimeout(updateTocs, 350); } };
+  // Tout changement du texte (frappe, annulation, remplacement, restauration d'une version…) rafraîchit le sommaire
+  new MutationObserver((muts) => {
+    if (!ed.querySelector('.toc')) return;
+    const outside = muts.some((m) => { const t = m.target.nodeType === 3 ? m.target.parentElement : m.target; return !(t && t.closest && t.closest('.toc')); });
+    if (outside) scheduleToc();
+  }).observe(ed, { childList: true, characterData: true, subtree: true });
+
+  // ---------- Champs du document ----------
+  const SUGGESTED_FIELDS = ['Nom du client', 'Adresse du client', 'Date de livraison', 'Numéro de facture', 'Montant total', 'Nom du projet', 'Responsable du projet', 'Nom de l’entreprise'];
+
+  function insertField(name) {
+    if (!(name in state.variables)) state.variables[name] = '';
+    P.insertHTML(P.varChipHTML(name));
+    P.refreshVars();
+    if (P.renderPanel) P.renderPanel();
+  }
+
+  /** Formulaire « Remplir les champs » : toutes les variables du document en une fois. */
+  async function fillFields(opts) {
+    const names = Object.keys(state.variables);
+    if (!names.length) { P.toast('Ce document n’a pas encore de champs : tapez @ pour en insérer un.'); return; }
+    const fromTpl = !!(opts && opts.fromTemplate);
+    const r = await P.modal({
+      title: 'Remplir les champs',
+      message: fromTpl ? 'Ce modèle contient des champs. Renseignez-les maintenant : ils seront remplacés partout dans le document (modifiables ensuite dans le panneau Variables).'
+        : 'Les valeurs saisies remplacent les champs partout dans le document.',
+      fields: names.map((n, i) => ({ id: 'f' + i, label: n, value: state.variables[n] || '' })),
+      ok: 'Appliquer',
+      buttons: fromTpl ? [{ id: 'cancel', label: 'Plus tard' }, { id: 'ok', label: 'Appliquer', primary: true }] : null,
+    });
+    if (!r) return;
+    names.forEach((n, i) => { state.variables[n] = String(r.values['f' + i] || '').trim(); });
+    P.refreshVars();
+    if (P.renderPanel) P.renderPanel();
+    P.markDirty();
+  }
+  P.fillFields = fillFields;
+
+  // ---------- Menus « @ » (puces, blocs, champs) et « / » (mise en forme et blocs) ----------
+  const BLOCK_ITEMS = [
+    { group: 'Blocs', icon: '📝', label: 'Notes de réunion', hint: 'Date, participants, actions', run: blockMeeting, kw: 'reunion compte rendu' },
+    { group: 'Blocs', icon: '✉', label: 'Brouillon de courriel', hint: 'S’ouvre dans votre messagerie', run: blockMail, kw: 'email mail message' },
+    { group: 'Blocs', icon: '📊', label: 'Suivi de projet', hint: 'Tableau avec statuts', run: blockTracker, kw: 'taches statut kanban' },
   ];
 
+  function atItems() {
+    const names = Object.keys(state.variables);
+    const fields = names.map((n) => ({ group: 'Champs du document', icon: '{ }', label: n, hint: state.variables[n] || 'à remplir', run: () => insertField(n), kw: 'variable champ' }));
+    if (names.length) fields.push({ group: 'Champs du document', icon: '☰', label: 'Remplir les champs…', hint: 'Tous à la fois', run: () => fillFields(), kw: 'variables formulaire' });
+    const suggested = SUGGESTED_FIELDS.filter((n) => !(n in state.variables))
+      .map((n) => ({ group: names.length ? 'Autres champs' : 'Champs prédéfinis', icon: '{ }', label: n, hint: 'Nouveau champ', run: () => insertField(n), kw: 'variable champ' }));
+    return [
+      ...fields,
+      { group: 'Puces intelligentes', icon: '👤', label: 'Personne', hint: 'Carte de contact', run: insertPerson },
+      { group: 'Puces intelligentes', icon: '📅', label: "Date d'aujourd'hui", hint: '', run: () => insertDate(true) },
+      { group: 'Puces intelligentes', icon: '📅', label: 'Date…', hint: 'Choisir une date', run: () => insertDate(false) },
+      { group: 'Puces intelligentes', icon: '📎', label: 'Fichier', hint: 'Lien vers un fichier local', run: insertFile },
+      { group: 'Puces intelligentes', icon: '📍', label: 'Lieu', hint: 'Ouvre une carte', run: insertPlace },
+      { group: 'Puces intelligentes', icon: '🔗', label: 'Lien web', hint: '', run: insertUrlChip },
+      { group: 'Puces intelligentes', icon: '{ }', label: 'Variable', hint: 'Champ personnalisé', run: insertVariable },
+      ...BLOCK_ITEMS,
+      { group: 'Blocs', icon: '☑', label: 'Liste de tâches', hint: '', run: checklist },
+      { group: 'Blocs', icon: '▦', label: 'Tableau', hint: '', run: insertTable },
+      { group: 'Blocs', icon: '⤓', label: 'Saut de page', hint: '', run: actions.pagebreak },
+      ...suggested,
+    ];
+  }
+
+  function slashItems() {
+    const T = (label, icon, run, kw, hint) => ({ group: 'Texte', icon, label, hint: hint || '', run, kw });
+    return [
+      T('Paragraphe', '¶', () => setBlock('p'), 'texte normal'),
+      T('Titre 1', 'H1', () => setBlock('h1'), 'heading grand titre h1'),
+      T('Titre 2', 'H2', () => setBlock('h2'), 'heading sous-titre h2'),
+      T('Titre 3', 'H3', () => setBlock('h3'), 'heading h3'),
+      T('Citation', '❝', () => setBlock('blockquote'), 'quote retrait'),
+      { group: 'Listes', icon: '•', label: 'Liste à puces', hint: '', run: () => P.exec('insertUnorderedList'), kw: 'bullet ul' },
+      { group: 'Listes', icon: '1.', label: 'Liste numérotée', hint: '', run: () => P.exec('insertOrderedList'), kw: 'ol numero' },
+      { group: 'Listes', icon: '☑', label: 'Liste de tâches', hint: 'Cases à cocher', run: checklist, kw: 'todo checklist' },
+      ...CALLOUTS.map((c) => ({ group: 'Encadrés', icon: c.glyph, tone: c.tone, label: c.label, hint: 'Encadré', run: () => insertCallout(c.kind), kw: 'callout encadre bloc ' + c.kw })),
+      { group: 'Insérer', icon: '▦', label: 'Tableau', hint: '', run: insertTable, kw: 'table grille' },
+      { group: 'Insérer', icon: '🖼', label: 'Image', hint: '', run: insertImage, kw: 'photo' },
+      { group: 'Insérer', icon: '—', label: 'Ligne horizontale', hint: '', run: actions.hr, kw: 'separateur trait' },
+      { group: 'Insérer', icon: '⤓', label: 'Saut de page', hint: '', run: actions.pagebreak, kw: 'page' },
+      { group: 'Insérer', icon: '☰', label: 'Sommaire', hint: 'Mis à jour automatiquement', run: insertToc, kw: 'table des matieres toc plan' },
+      { group: 'Insérer', icon: '🔗', label: 'Lien', hint: '', run: insertLink, kw: 'url hyperlien' },
+      { group: 'Insérer', icon: '📅', label: "Date d'aujourd'hui", hint: '', run: () => insertDate(true), kw: 'jour' },
+      { group: 'Insérer', icon: '👤', label: 'Personne', hint: 'Carte de contact', run: insertPerson, kw: 'mention contact' },
+      ...BLOCK_ITEMS.map((b) => Object.assign({}, b, { group: 'Blocs' })),
+    ];
+  }
+
   const menu = $('#atmenu');
-  let at = null;       // {node, offset} position du « @ » saisi, ou null s'il vient du bouton
+  let at = null;       // {node, offset} position du déclencheur saisi (« @ » ou « / »), ou null s'il vient du bouton
+  let trig = '@';
   let menuOpen = false;
+  let allItems = [];
   let visible = [];
   let idx = 0;
 
   const norm = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
   function renderMenu(filter) {
-    const f = norm(filter || '');
-    visible = AT_ITEMS.filter((it) => !f || norm(it.label).includes(f) || norm(it.group).includes(f));
+    const f = norm(filter || '').trim();
+    visible = allItems.filter((it) => !f || norm(it.label + ' ' + (it.kw || '') + ' ' + it.group).includes(f));
     if (idx >= visible.length) idx = 0;
     menu.replaceChildren();
     let lastGroup = null;
     visible.forEach((it, i) => {
       if (it.group !== lastGroup) { menu.append(h('div', { class: 'at-group', text: it.group })); lastGroup = it.group; }
+      const ico = h('span', { class: 'at-ico', text: it.icon });
+      if (it.tone) ico.style.setProperty('--tone', it.tone);
       menu.append(h('div', {
         class: 'at-item' + (i === idx ? ' sel' : ''),
         role: 'option',
         onmousedown: (e) => { e.preventDefault(); choose(it); },
-      }, h('span', { class: 'at-ico', text: it.icon }), h('span', { class: 'at-label', text: it.label }), h('span', { class: 'at-hint', text: it.hint })));
+      }, ico, h('span', { class: 'at-label', text: it.label }), h('span', { class: 'at-hint', text: it.hint || '' })));
     });
     if (!visible.length) menu.append(h('div', { class: 'at-empty', text: 'Aucun résultat' }));
     const sel = menu.querySelector('.sel');
@@ -516,12 +832,15 @@
     menu.style.top = Math.max(8, Math.min(rect.bottom + 4, innerHeight - 330)) + 'px';
   }
 
-  function openAtMenu(anchor) {
+  function openAtMenu(anchor, t) {
     if (readOnly()) return;
+    trig = t || '@';
+    allItems = trig === '/' ? slashItems() : atItems();
     at = anchor;
     idx = 0;
     menuOpen = true;
     menu.hidden = false;
+    menu.setAttribute('aria-label', trig === '/' ? 'Blocs et mise en forme' : 'Puces intelligentes, blocs et champs');
     renderMenu('');
     placeMenu();
   }
@@ -538,6 +857,15 @@
       r.setEnd(endNode, Math.max(endOff, at.offset));
       r.deleteContents();
       r.collapse(true);
+      if (trig === '/') {
+        // le bloc doit rester un paragraphe vide « réel » (avec <br>), sinon Chromium le replie à zéro de hauteur
+        const blk = at.node.parentElement && at.node.parentElement.closest('p, h1, h2, h3, li, td, th, div, blockquote');
+        if (blk && ed.contains(blk) && !blk.textContent && !blk.querySelector('img, br')) {
+          blk.innerHTML = '<br>';
+          r.setStart(blk, 0);
+          r.collapse(true);
+        }
+      }
       sel.removeAllRanges();
       sel.addRange(r);
     }
@@ -547,22 +875,27 @@
   }
 
   function atOnInput(e) {
-    if (e.inputType === 'insertText' && e.data === '@' && !menuOpen) {
+    if (e.inputType === 'insertText' && !menuOpen && (e.data === '@' || e.data === '/')) {
       const sel = window.getSelection();
       const n = sel.anchorNode;
       const off = sel.anchorOffset;
-      if (n && n.nodeType === 3 && n.nodeValue[off - 1] === '@' && (off === 1 || /\s/.test(n.nodeValue[off - 2]))) {
-        openAtMenu({ node: n, offset: off - 1 });
+      if (!n || n.nodeType !== 3 || n.nodeValue[off - 1] !== e.data) return;
+      if (e.data === '@' && (off === 1 || /\s/.test(n.nodeValue[off - 2]))) openAtMenu({ node: n, offset: off - 1 }, '@');
+      else if (e.data === '/' && state.mode === 'edit' && off === 1 && n.nodeValue === '/') {
+        // « / » ne s'active qu'au début d'un bloc vide (pas dans « 1/2 », « et/ou » ou une adresse)
+        const blk = n.parentElement && n.parentElement.closest('p, h1, h2, h3, li, td, th, div, blockquote');
+        if (blk && blk.textContent === '/') openAtMenu({ node: n, offset: 0 }, '/');
       }
       return;
     }
     if (!menuOpen || !at) return;
     const sel = window.getSelection();
-    if (!sel.rangeCount || sel.anchorNode !== at.node || at.node.nodeValue[at.offset] !== '@' || sel.anchorOffset <= at.offset) { closeAtMenu(); return; }
+    if (!sel.rangeCount || sel.anchorNode !== at.node || at.node.nodeValue[at.offset] !== trig || sel.anchorOffset <= at.offset) { closeAtMenu(); return; }
     const typed = at.node.nodeValue.slice(at.offset + 1, sel.anchorOffset);
-    if (/\s/.test(typed)) { closeAtMenu(); return; }
+    if (/^\s/.test(typed)) { closeAtMenu(); return; }   // « @ » ou « / » suivi d'une espace : c'est du texte ordinaire
     idx = 0;
     renderMenu(typed);
+    if (!visible.length && /\s$/.test(typed)) { closeAtMenu(); return; }   // les noms à plusieurs mots sont permis tant qu'il reste des résultats
     placeMenu();
   }
 
@@ -570,8 +903,9 @@
     if (!menuOpen) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); idx = (idx + 1) % Math.max(1, visible.length); renderMenu(currentFilter()); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); idx = (idx - 1 + visible.length) % Math.max(1, visible.length); renderMenu(currentFilter()); }
-    else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); if (visible[idx]) choose(visible[idx]); else closeAtMenu(); }
-    else if (e.key === 'Escape') { e.preventDefault(); closeAtMenu(); }
+    else if (e.key === 'Enter' || e.key === 'Tab') {
+      if (visible[idx]) { e.preventDefault(); choose(visible[idx]); } else closeAtMenu();
+    } else if (e.key === 'Escape') { e.preventDefault(); closeAtMenu(); }
   }, true);
 
   function currentFilter() {
@@ -596,8 +930,10 @@
     }
     if (pendingSizePt != null) { fixSizes(); pendingSizePt = null; }
     fixChecklists();
+    ensureTrailing();
     P.markDirty();
     P.updateCounts();
+    scheduleToc();
     atOnInput(e);
   });
 
@@ -633,6 +969,8 @@
   ed.addEventListener('click', async (e) => {
     const mailBtn = e.target.closest('button[data-act="mail"]');
     if (mailBtn) { openMail(mailBtn.closest('.block-mail')); return; }
+    const ti = e.target.closest('.toc-item');
+    if (ti) { const hd = tocHeadings()[+ti.dataset.h]; if (hd) hd.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
     const c = e.target.closest('.chip');
     if (c) {
       const d = c.dataset;
@@ -666,7 +1004,8 @@
     if (readOnly()) { e.preventDefault(); return; }
     const cd = e.clipboardData;
     if (!cd) return;
-    const html = cd.getData('text/html');
+    const plain = P.takePlainPaste ? P.takePlainPaste() : false;   // Ctrl+Maj+V ou « Coller sans la mise en forme »
+    const html = plain ? '' : cd.getData('text/html');
     const text = cd.getData('text/plain');
     const file = Array.from(cd.files || []).find(okImage);
     e.preventDefault();

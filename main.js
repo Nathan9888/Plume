@@ -243,7 +243,7 @@ async function saveDialogAndWrite(defaultName, ext, label, getData) {
     filters: [{ name: label, extensions: [ext] }],
   });
   if (r.canceled || !r.filePath) return null;
-  const data = await getData();
+  const data = await getData(r.filePath);
   fs.writeFileSync(r.filePath, data);
   return { path: r.filePath };
 }
@@ -257,6 +257,24 @@ ipcMain.handle('export:pdf', guard((_e, { name }) =>
 
 ipcMain.handle('export:html', guard((_e, { html, name }) =>
   saveDialogAndWrite(name, 'html', 'Page HTML', () => Buffer.from(html, 'utf8'))));
+
+// Markdown : le texte et, s'il y a des images, un dossier « nom_images » à côté du fichier
+ipcMain.handle('export:md', guard((_e, { md, images, name }) => {
+  const imgs = Array.isArray(images) ? images : [];
+  if (typeof md !== 'string' || md.length > 60 * 1024 * 1024) return { error: 'Le document est trop volumineux.' };
+  if (imgs.length > 300 || imgs.some((i) => !i || !/^image-\d{1,4}\.(png|jpg|gif|webp)$/.test(i.name) || typeof i.b64 !== 'string' || !/^[A-Za-z0-9+/=]+$/.test(i.b64))) return { error: 'Images invalides.' };
+  return saveDialogAndWrite(name, 'md', 'Markdown', (filePath) => {
+    let text = md;
+    if (imgs.length) {
+      const dirName = path.basename(filePath, path.extname(filePath)) + '_images';
+      const dir = path.join(path.dirname(filePath), dirName);
+      fs.mkdirSync(dir, { recursive: true });
+      for (const i of imgs) fs.writeFileSync(path.join(dir, i.name), Buffer.from(i.b64, 'base64'));
+      text = text.split('{{IMAGES}}').join(encodeURIComponent(dirName));
+    }
+    return Buffer.from(text, 'utf8');
+  });
+}));
 
 ipcMain.handle('print', guard(() => new Promise((resolve) => {
   win.webContents.print({ printBackground: true }, (ok) => resolve({ ok }));
@@ -319,6 +337,11 @@ ipcMain.handle('spell:langs', guard((_e, mode) => {
   const langs = mode === 'fr' ? ['fr'] : mode === 'en' ? ['en-US'] : ['fr', 'en-US'];
   try { win.webContents.session.setSpellCheckerLanguages(langs); } catch (_) { return false; }
   return true;
+}));
+
+ipcMain.handle('spell:add', guard((_e, word) => {
+  if (!win || typeof word !== 'string' || !word.trim() || word.length > 80) return false;
+  return win.webContents.session.addWordToSpellCheckerDictionary(word.trim());
 }));
 
 ipcMain.handle('edit:cmd', guard((_e, cmd) => {

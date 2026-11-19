@@ -199,7 +199,7 @@
     'TABLE', 'THEAD', 'TBODY', 'TFOOT', 'TR', 'TD', 'TH', 'COLGROUP', 'COL', 'IMG', 'SPAN', 'DIV', 'HR', 'BLOCKQUOTE', 'PRE', 'CODE',
     'SUB', 'SUP', 'FONT', 'INS', 'DEL', 'INPUT', 'BUTTON']);
   const STYLE_OK = ['font-weight', 'font-style', 'text-decoration', 'text-decoration-line', 'color', 'background-color', 'font-size', 'font-family', 'text-align'];
-  const CLASS_OK = /^(chip|chip-[a-z]+|cmt|resolved|active|sg-ins|sg-del|checklist|pagebreak|block|block-mail|noexport)$/;
+  const CLASS_OK = /^(chip|chip-[a-z]+|cmt|resolved|active|sg-ins|sg-del|checklist|pagebreak|block|block-mail|noexport|callout|callout-(info|tip|warn|danger)|toc|toc-title|toc-body|toc-item|toc-empty|lvl[1-3]|react|tbl-none|tbl-thick)$/;
   const ATTR_OK = new Set(['class', 'style', 'contenteditable', 'colspan', 'rowspan', 'width', 'height', 'align', 'alt', 'title', 'checked', 'type', 'href', 'src', 'color', 'face', 'size']);
 
   /**

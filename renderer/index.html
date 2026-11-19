@@ -35,6 +35,7 @@
     <symbol id="i-hilite" viewBox="0 0 24 24"><path d="M14.50 5.50 18.50 9.50 10.50 17.50H6.50v-4zM12.50 7.50l4 4M5 21h14"/></symbol>
     <symbol id="i-link" viewBox="0 0 24 24"><path d="M10.20 13.80a4 4 0 0 0 5.70 0l3-3a4 4 0 0 0-5.70-5.70l-1 1M13.80 10.20a4 4 0 0 0-5.70 0l-3 3a4 4 0 0 0 5.70 5.70l1-1"/></symbol>
     <symbol id="i-comment" viewBox="0 0 24 24"><path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-7l-4.50 4v-4H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM12 8v5M9.50 10.50h5"/></symbol>
+    <symbol id="i-emoji" viewBox="0 0 24 24"><circle cx="11.5" cy="12.5" r="7.5"/><path d="M8.6 14.4a3.6 3.6 0 0 0 5.8 0M9.3 10.8h.01M13.7 10.8h.01M18.5 2.8v4.4M16.3 5h4.4"/></symbol>
     <symbol id="i-image" viewBox="0 0 24 24"><path d="M5 4.50h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1zM4.20 16.50l4.30-4.30 4 4M12.50 14.50l2.50-2.50 4.80 4.80"/><circle cx="8.8" cy="8.8" r="1.3" fill="currentColor" stroke="none"/></symbol>
     <symbol id="i-al-left" viewBox="0 0 24 24"><path d="M4 6h16M4 10h10M4 14h16M4 18h10"/></symbol>
     <symbol id="i-al-center" viewBox="0 0 24 24"><path d="M4 6h16M7 10h10M4 14h16M7 18h10"/></symbol>
@@ -126,98 +127,101 @@
 
     <!-- ===== Document ===== -->
     <section id="docview" hidden aria-label="Document">
-      <div id="dochead">
-        <button type="button" id="doc-logo" title="Retour à l'accueil" aria-label="Retour à l'accueil"><span class="brand-tile sm"><svg class="ic"><use href="#i-feather"/></svg></span></button>
-        <nav id="menubar" role="menubar" aria-label="Menus"></nav>
-        <div class="title-row">
-          <input id="title" type="text" value="Sans titre" spellcheck="false" aria-label="Titre du document">
-          <span id="savestate">Prêt</span>
+      <div id="chrome">
+        <div id="dochead">
+          <button type="button" id="doc-logo" title="Retour à l'accueil" aria-label="Retour à l'accueil"><span class="brand-tile sm"><svg class="ic"><use href="#i-feather"/></svg></span></button>
+          <nav id="menubar" role="menubar" aria-label="Menus"></nav>
+          <div class="title-row">
+            <input id="title" type="text" value="Sans titre" spellcheck="false" aria-label="Titre du document">
+            <span id="savestate">Prêt</span>
+          </div>
+          <div class="head-right">
+            <button type="button" id="btn-expand" class="icon-btn" title="Réafficher les menus et la barre d'outils (Ctrl+Maj+F)" aria-label="Réafficher les menus"><svg class="ic"><use href="#i-chev-down"/></svg></button>
+            <button type="button" id="btn-history" class="icon-btn" title="Historique des versions" aria-label="Historique des versions"><svg class="ic"><use href="#i-history"/></svg></button>
+            <button type="button" id="btn-comments" class="icon-btn" title="Commentaires" aria-label="Commentaires"><svg class="ic"><use href="#i-comment"/></svg></button>
+            <button type="button" id="btn-save" class="pill-primary" title="Enregistrer (Ctrl+S)"><svg class="ic sm"><use href="#i-save"/></svg><span>Enregistrer</span></button>
+            <button type="button" class="avatar-btn" data-profile title="Compte et paramètres" aria-label="Compte et paramètres"><span class="avatar">?</span></button>
+          </div>
         </div>
-        <div class="head-right">
-          <button type="button" id="btn-expand" class="icon-btn" title="Réafficher les menus et la barre d'outils (Ctrl+Maj+F)" aria-label="Réafficher les menus"><svg class="ic"><use href="#i-chev-down"/></svg></button>
-          <button type="button" id="btn-history" class="icon-btn" title="Historique des versions" aria-label="Historique des versions"><svg class="ic"><use href="#i-history"/></svg></button>
-          <button type="button" id="btn-comments" class="icon-btn" title="Commentaires" aria-label="Commentaires"><svg class="ic"><use href="#i-comment"/></svg></button>
-          <button type="button" id="btn-save" class="pill-primary" title="Enregistrer (Ctrl+S)"><svg class="ic sm"><use href="#i-save"/></svg><span>Enregistrer</span></button>
-          <button type="button" class="avatar-btn" data-profile title="Compte et paramètres" aria-label="Compte et paramètres"><span class="avatar">?</span></button>
-        </div>
-      </div>
 
-      <div id="toolbar" role="toolbar" aria-label="Mise en forme">
-        <div id="tb-tools">
-          <div class="grp">
-            <button type="button" data-cmd="undo" title="Annuler (Ctrl+Z)"><svg class="ic"><use href="#i-undo"/></svg></button>
-            <button type="button" data-cmd="redo" title="Rétablir (Ctrl+Y)"><svg class="ic"><use href="#i-redo"/></svg></button>
-            <button type="button" data-act="print" title="Imprimer (Ctrl+P)"><svg class="ic"><use href="#i-print"/></svg></button>
-            <button type="button" data-act="spell" id="tb-spell" title="Correcteur orthographique"><svg class="ic"><use href="#i-spell"/></svg></button>
-            <select id="tb-zoom" title="Zoom de la page" aria-label="Zoom">
-              <option value="50">50 %</option><option value="75">75 %</option><option value="90">90 %</option>
-              <option value="100" selected>100 %</option><option value="125">125 %</option><option value="150">150 %</option><option value="200">200 %</option>
-            </select>
+        <div id="toolbar" role="toolbar" aria-label="Mise en forme">
+          <div id="tb-tools">
+            <div class="grp">
+              <button type="button" data-cmd="undo" title="Annuler (Ctrl+Z)"><svg class="ic"><use href="#i-undo"/></svg></button>
+              <button type="button" data-cmd="redo" title="Rétablir (Ctrl+Y)"><svg class="ic"><use href="#i-redo"/></svg></button>
+              <button type="button" data-act="print" title="Imprimer (Ctrl+P)"><svg class="ic"><use href="#i-print"/></svg></button>
+              <button type="button" data-act="spell" id="tb-spell" title="Correcteur orthographique"><svg class="ic"><use href="#i-spell"/></svg></button>
+              <select id="tb-zoom" title="Zoom de la page" aria-label="Zoom">
+                <option value="50">50 %</option><option value="75">75 %</option><option value="90">90 %</option>
+                <option value="100" selected>100 %</option><option value="125">125 %</option><option value="150">150 %</option><option value="200">200 %</option>
+              </select>
+            </div>
+            <div class="grp">
+              <select id="tb-block" title="Style de paragraphe" aria-label="Style de paragraphe">
+                <option value="p">Texte normal</option>
+                <option value="h1">Titre 1</option>
+                <option value="h2">Titre 2</option>
+                <option value="h3">Titre 3</option>
+                <option value="blockquote">Citation</option>
+              </select>
+              <select id="tb-font" title="Police" aria-label="Police">
+                <option>Calibri</option><option>Arial</option><option>Times New Roman</option>
+                <option>Georgia</option><option>Verdana</option><option>Segoe UI</option><option>Courier New</option>
+              </select>
+            </div>
+            <div class="grp">
+              <button type="button" data-size="-1" title="Réduire la taille de police" class="sz"><svg class="ic"><use href="#i-minus"/></svg></button>
+              <input id="tb-size" type="text" inputmode="numeric" value="11" title="Taille de police (pt)" aria-label="Taille de police">
+              <button type="button" data-size="1" title="Augmenter la taille de police" class="sz"><svg class="ic"><use href="#i-plus"/></svg></button>
+            </div>
+            <div class="grp">
+              <button type="button" data-cmd="bold" title="Gras (Ctrl+B)"><svg class="ic"><use href="#i-bold"/></svg></button>
+              <button type="button" data-cmd="italic" title="Italique (Ctrl+I)"><svg class="ic"><use href="#i-italic"/></svg></button>
+              <button type="button" data-cmd="underline" title="Souligné (Ctrl+U)"><svg class="ic"><use href="#i-underline"/></svg></button>
+              <button type="button" data-cmd="strikeThrough" title="Barré"><svg class="ic"><use href="#i-strike"/></svg></button>
+              <label class="colorbtn" title="Couleur du texte"><svg class="ic"><use href="#i-color"/></svg><i id="ico-color"></i><input type="color" id="tb-color" value="#d93025"></label>
+              <label class="colorbtn" title="Surlignage"><svg class="ic"><use href="#i-hilite"/></svg><i id="ico-hilite"></i><input type="color" id="tb-hilite" value="#fff475"></label>
+            </div>
+            <div class="grp">
+              <button type="button" data-act="link" title="Insérer un lien (Ctrl+K)"><svg class="ic"><use href="#i-link"/></svg></button>
+              <button type="button" data-act="comment" title="Ajouter un commentaire (Ctrl+Alt+M)"><svg class="ic"><use href="#i-comment"/></svg></button>
+              <button type="button" data-act="image" title="Insérer une image"><svg class="ic"><use href="#i-image"/></svg></button>
+              <button type="button" data-act="at" title="Puces intelligentes et blocs (ou tapez @)"><svg class="ic"><use href="#i-at"/></svg></button>
+            </div>
+            <div class="grp">
+              <button type="button" data-cmd="justifyLeft" title="Aligner à gauche"><svg class="ic"><use href="#i-al-left"/></svg></button>
+              <button type="button" data-cmd="justifyCenter" title="Centrer"><svg class="ic"><use href="#i-al-center"/></svg></button>
+              <button type="button" data-cmd="justifyRight" title="Aligner à droite"><svg class="ic"><use href="#i-al-right"/></svg></button>
+              <button type="button" data-cmd="justifyFull" title="Justifier"><svg class="ic"><use href="#i-al-justify"/></svg></button>
+            </div>
+            <div class="grp">
+              <button type="button" data-cmd="insertUnorderedList" title="Liste à puces"><svg class="ic"><use href="#i-list-bullet"/></svg></button>
+              <button type="button" data-cmd="insertOrderedList" title="Liste numérotée"><svg class="ic"><use href="#i-list-number"/></svg></button>
+              <button type="button" data-act="checklist" title="Liste de tâches"><svg class="ic"><use href="#i-checklist"/></svg></button>
+              <button type="button" data-cmd="outdent" title="Diminuer le retrait"><svg class="ic"><use href="#i-indent-dec"/></svg></button>
+              <button type="button" data-cmd="indent" title="Augmenter le retrait"><svg class="ic"><use href="#i-indent-inc"/></svg></button>
+            </div>
+            <div class="grp">
+              <button type="button" data-act="table" title="Insérer un tableau"><svg class="ic"><use href="#i-table"/></svg></button>
+              <button type="button" data-act="pagebreak" title="Saut de page"><svg class="ic"><use href="#i-pagebreak"/></svg></button>
+              <button type="button" data-cmd="removeFormat" title="Effacer la mise en forme (Ctrl+\)"><svg class="ic"><use href="#i-clear"/></svg></button>
+              <button type="button" data-act="find" title="Rechercher et remplacer (Ctrl+F)"><svg class="ic"><use href="#i-search"/></svg></button>
+              <button type="button" data-act="dlp" title="Vérifier les données sensibles"><svg class="ic"><use href="#i-shield"/></svg></button>
+            </div>
+            <div class="grp" id="tablebar" hidden>
+              <button type="button" class="txt" data-tbl="addRow" title="Ajouter une ligne sous la ligne courante">+ ligne</button>
+              <button type="button" class="txt" data-tbl="addCol" title="Ajouter une colonne à droite">+ colonne</button>
+              <button type="button" class="txt" data-tbl="delRow" title="Supprimer la ligne">− ligne</button>
+              <button type="button" class="txt" data-tbl="delCol" title="Supprimer la colonne">− colonne</button>
+              <button type="button" class="txt" data-tbl="delTable" title="Supprimer le tableau">Supprimer le tableau</button>
+              <button type="button" class="txt" data-tbl="options" title="Bordures, largeur, ligne de titre">Options du tableau</button>
+            </div>
           </div>
-          <div class="grp">
-            <select id="tb-block" title="Style de paragraphe" aria-label="Style de paragraphe">
-              <option value="p">Texte normal</option>
-              <option value="h1">Titre 1</option>
-              <option value="h2">Titre 2</option>
-              <option value="h3">Titre 3</option>
-              <option value="blockquote">Citation</option>
-            </select>
-            <select id="tb-font" title="Police" aria-label="Police">
-              <option>Calibri</option><option>Arial</option><option>Times New Roman</option>
-              <option>Georgia</option><option>Verdana</option><option>Segoe UI</option><option>Courier New</option>
-            </select>
-          </div>
-          <div class="grp">
-            <button type="button" data-size="-1" title="Réduire la taille de police" class="sz"><svg class="ic"><use href="#i-minus"/></svg></button>
-            <input id="tb-size" type="text" inputmode="numeric" value="11" title="Taille de police (pt)" aria-label="Taille de police">
-            <button type="button" data-size="1" title="Augmenter la taille de police" class="sz"><svg class="ic"><use href="#i-plus"/></svg></button>
-          </div>
-          <div class="grp">
-            <button type="button" data-cmd="bold" title="Gras (Ctrl+B)"><svg class="ic"><use href="#i-bold"/></svg></button>
-            <button type="button" data-cmd="italic" title="Italique (Ctrl+I)"><svg class="ic"><use href="#i-italic"/></svg></button>
-            <button type="button" data-cmd="underline" title="Souligné (Ctrl+U)"><svg class="ic"><use href="#i-underline"/></svg></button>
-            <button type="button" data-cmd="strikeThrough" title="Barré"><svg class="ic"><use href="#i-strike"/></svg></button>
-            <label class="colorbtn" title="Couleur du texte"><svg class="ic"><use href="#i-color"/></svg><i id="ico-color"></i><input type="color" id="tb-color" value="#d93025"></label>
-            <label class="colorbtn" title="Surlignage"><svg class="ic"><use href="#i-hilite"/></svg><i id="ico-hilite"></i><input type="color" id="tb-hilite" value="#fff475"></label>
-          </div>
-          <div class="grp">
-            <button type="button" data-act="link" title="Insérer un lien (Ctrl+K)"><svg class="ic"><use href="#i-link"/></svg></button>
-            <button type="button" data-act="comment" title="Ajouter un commentaire (Ctrl+Alt+M)"><svg class="ic"><use href="#i-comment"/></svg></button>
-            <button type="button" data-act="image" title="Insérer une image"><svg class="ic"><use href="#i-image"/></svg></button>
-            <button type="button" data-act="at" title="Puces intelligentes et blocs (ou tapez @)"><svg class="ic"><use href="#i-at"/></svg></button>
-          </div>
-          <div class="grp">
-            <button type="button" data-cmd="justifyLeft" title="Aligner à gauche"><svg class="ic"><use href="#i-al-left"/></svg></button>
-            <button type="button" data-cmd="justifyCenter" title="Centrer"><svg class="ic"><use href="#i-al-center"/></svg></button>
-            <button type="button" data-cmd="justifyRight" title="Aligner à droite"><svg class="ic"><use href="#i-al-right"/></svg></button>
-            <button type="button" data-cmd="justifyFull" title="Justifier"><svg class="ic"><use href="#i-al-justify"/></svg></button>
-          </div>
-          <div class="grp">
-            <button type="button" data-cmd="insertUnorderedList" title="Liste à puces"><svg class="ic"><use href="#i-list-bullet"/></svg></button>
-            <button type="button" data-cmd="insertOrderedList" title="Liste numérotée"><svg class="ic"><use href="#i-list-number"/></svg></button>
-            <button type="button" data-act="checklist" title="Liste de tâches"><svg class="ic"><use href="#i-checklist"/></svg></button>
-            <button type="button" data-cmd="outdent" title="Diminuer le retrait"><svg class="ic"><use href="#i-indent-dec"/></svg></button>
-            <button type="button" data-cmd="indent" title="Augmenter le retrait"><svg class="ic"><use href="#i-indent-inc"/></svg></button>
-          </div>
-          <div class="grp">
-            <button type="button" data-act="table" title="Insérer un tableau"><svg class="ic"><use href="#i-table"/></svg></button>
-            <button type="button" data-act="pagebreak" title="Saut de page"><svg class="ic"><use href="#i-pagebreak"/></svg></button>
-            <button type="button" data-cmd="removeFormat" title="Effacer la mise en forme (Ctrl+\)"><svg class="ic"><use href="#i-clear"/></svg></button>
-            <button type="button" data-act="find" title="Rechercher et remplacer (Ctrl+F)"><svg class="ic"><use href="#i-search"/></svg></button>
-            <button type="button" data-act="dlp" title="Vérifier les données sensibles"><svg class="ic"><use href="#i-shield"/></svg></button>
-          </div>
-          <div class="grp" id="tablebar" hidden>
-            <button type="button" class="txt" data-tbl="addRow" title="Ajouter une ligne sous la ligne courante">+ ligne</button>
-            <button type="button" class="txt" data-tbl="addCol" title="Ajouter une colonne à droite">+ colonne</button>
-            <button type="button" class="txt" data-tbl="delRow" title="Supprimer la ligne">− ligne</button>
-            <button type="button" class="txt" data-tbl="delCol" title="Supprimer la colonne">− colonne</button>
-            <button type="button" class="txt" data-tbl="delTable" title="Supprimer le tableau">Supprimer le tableau</button>
-          </div>
+          <button type="button" id="tb-more" title="Plus d'outils" aria-label="Plus d'outils" hidden><svg class="ic"><use href="#i-more"/></svg></button>
+          <button type="button" id="modebtn" title="Mode : édition, suggestion ou lecture seule" aria-haspopup="menu">
+            <svg class="ic" id="mode-ic"><use href="#i-edit"/></svg><span id="mode-label">Édition</span><svg class="ic sm"><use href="#i-chev-down"/></svg>
+          </button>
         </div>
-        <button type="button" id="tb-more" title="Plus d'outils" aria-label="Plus d'outils" hidden><svg class="ic"><use href="#i-more"/></svg></button>
-        <button type="button" id="modebtn" title="Mode : édition, suggestion ou lecture seule" aria-haspopup="menu">
-          <svg class="ic" id="mode-ic"><use href="#i-edit"/></svg><span id="mode-label">Édition</span><svg class="ic sm"><use href="#i-chev-down"/></svg>
-        </button>
       </div>
 
       <div id="workspace">
@@ -268,6 +272,8 @@
 </div>
 
 <div id="atmenu" hidden role="listbox"></div>
+<div id="selbar" hidden role="toolbar" aria-label="Actions rapides sur la sélection"></div>
+<div id="focuspill" hidden><span id="fp-text"></span><button type="button" id="fp-exit" title="Quitter le mode concentration (Échap)">Quitter</button></div>
 <div id="tip" hidden></div>
 <div id="toast" hidden></div>
 <div id="pop"></div>
@@ -275,6 +281,7 @@
 <script src="ui.js"></script>
 <script src="settings.js"></script>
 <script src="docx.js"></script>
+<script src="markdown.js"></script>
 <script src="editor.js"></script>
 <script src="review.js"></script>
 <script src="store.js"></script>
@@ -283,6 +290,11 @@
 <script src="templates.js"></script>
 <script src="app.js"></script>
 <script src="menus.js"></script>
+<script src="palette.js"></script>
+<script src="emoji.js"></script>
+<script src="selbar.js"></script>
+<script src="ctxmenu.js"></script>
+<script src="focus.js"></script>
 <script src="home.js"></script>
 <script src="start.js"></script>
 </body>

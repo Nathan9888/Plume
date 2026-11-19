@@ -382,6 +382,30 @@
     return x + '</w:tbl><w:p><w:pPr><w:spacing w:after="0"/></w:pPr></w:p>';
   }
 
+  const CALLOUT_COLORS = { info: ['EAF3FF', '0A84FF'], tip: ['E9F8EE', '30A14E'], warn: ['FFF5E0', 'FF9F0A'], danger: ['FFECEA', 'FF453A'] };
+
+  /** Encadré : tableau d'une cellule, fond teinté et filet coloré à gauche. */
+  function callout(el, ctx, o) {
+    const kind = Object.keys(CALLOUT_COLORS).find((k) => el.classList.contains('callout-' + k)) || 'info';
+    const [fill, bar] = CALLOUT_COLORS[kind];
+    const total = 9360 - (o.indent || 0);
+    let inner = blocks(el, ctx, { rbase: o.rbase });
+    if (!inner || inner.endsWith('</w:tbl>')) inner += '<w:p/>';
+    const b = (n, c, sz) => `<w:${n} w:val="single" w:sz="${sz}" w:space="0" w:color="${c}"/>`;
+    return `<w:tbl><w:tblPr><w:tblW w:w="${total}" w:type="dxa"/>${o.indent ? `<w:tblInd w:w="${o.indent}" w:type="dxa"/>` : ''}<w:tblBorders>${b('top', fill, 4)}${b('left', bar, 24)}${b('bottom', fill, 4)}${b('right', fill, 4)}</w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:top w:w="100" w:type="dxa"/><w:left w:w="180" w:type="dxa"/><w:bottom w:w="100" w:type="dxa"/><w:right w:w="180" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid><w:gridCol w:w="${total}"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="${total}" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="${fill}"/></w:tcPr>${inner}</w:tc></w:tr></w:tbl><w:p><w:pPr><w:spacing w:after="0"/></w:pPr></w:p>`;
+  }
+
+  /** Sommaire : titre puis une ligne par titre du document, décalée selon le niveau (sans numéros de page). */
+  function tocBlock(el, ctx, o) {
+    const titleEl = el.querySelector('.toc-title');
+    let out = para(inline([document.createTextNode((titleEl && titleEl.textContent.trim()) || 'Sommaire')], { b: true }, ctx), { ind: o.indent });
+    for (const it of Array.from(el.querySelectorAll('.toc-item'))) {
+      const lvl = +((/lvl([1-3])/.exec(it.className) || [0, 1])[1]);
+      out += para(inline([document.createTextNode(it.textContent)], {}, ctx), { ind: (o.indent || 0) + (lvl - 1) * 360 });
+    }
+    return out;
+  }
+
   function blocks(parent, ctx, o) {
     o = o || {};
     let out = '';
@@ -395,6 +419,8 @@
       const tag = c.tagName;
       if (c.classList.contains('noexport') || tag === 'SCRIPT' || tag === 'STYLE') continue;
       if (c.classList.contains('pagebreak')) { flush(); out += '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'; }
+      else if (c.classList.contains('callout')) { flush(); out += callout(c, ctx, o); }
+      else if (c.classList.contains('toc')) { flush(); out += tocBlock(c, ctx, o); }
       else if (tag === 'P' || /^H[1-6]$/.test(tag) || tag === 'PRE') { flush(); out += blockPara(c, ctx, o); }
       else if (tag === 'UL' || tag === 'OL') { flush(); out += list(c, ctx, o); }
       else if (tag === 'TABLE') { flush(); out += table(c, ctx, o); }

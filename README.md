@@ -5,7 +5,7 @@ vos documents restent sur votre ordinateur (fichiers `.plume`).
 
 ## Obtenir l'application (.exe)
 
-Il existe deux façons. Dans les deux cas, vous obtenez un installateur `Plume Setup 1.1.0.exe`.
+Il existe deux façons. Dans les deux cas, vous obtenez un installateur `Plume Setup 1.2.0.exe`.
 
 ### Option A — Sur votre PC (si vous pouvez installer des logiciels)
 
@@ -18,13 +18,14 @@ npm start          :: pour essayer l'application tout de suite
 npm run dist       :: pour fabriquer l'installateur
 ```
 
-3. L'installateur se trouve dans `dist\Plume Setup 1.1.0.exe`. Double-cliquez pour l'installer.
+3. L'installateur se trouve dans `dist\Plume Setup 1.2.0.exe`. Double-cliquez pour l'installer.
 
 ### Option B — Sans rien installer (GitHub Actions)
 
-1. Créez un dépôt GitHub privé et envoyez-y le contenu de ce dossier.
+1. Créez un dépôt GitHub et envoyez-y le contenu de ce dossier.
 2. Onglet **Actions** → **Construire l'installateur Windows** → **Run workflow**.
-3. Quand c'est terminé (environ 3 minutes), téléchargez l'élément **Plume-installateur** en bas de la page.
+3. Quand c'est terminé (environ 3 minutes), l'installateur est publié dans la section **Releases** du dépôt
+   (version « Plume 1.2.0 ») et aussi disponible comme élément **Plume-installateur** au bas de la page de l'exécution.
 
 > Windows peut afficher « Windows a protégé votre ordinateur » (SmartScreen) : l'installateur n'est pas signé
 > numériquement. Cliquez sur **Informations complémentaires** puis **Exécuter quand même**.
@@ -45,6 +46,16 @@ texte moderne (menus, barre d'outils, plan, panneau latéral).
   raccourcis affichés et navigation au clavier. La barre d'outils, en capsules sur une seule ligne, déploie le reste
   derrière un bouton « … » quand la fenêtre est étroite. Le titre du document est centré dans l'en-tête.
 - **Plan du document** à gauche, **commentaires / suggestions / versions / variables** à droite (contrôle segmenté).
+- **Palette de commandes** (`Ctrl+Maj+P`) : recherche instantanée de toutes les actions, réglages et modèles.
+- **Mode concentration** (`Ctrl+Maj+C`, `Échap` pour quitter) : tout disparaît sauf la page ; seul le paragraphe en cours reste
+  bien visible, et une pastille discrète affiche le temps de lecture et le nombre de mots.
+- **Barre flottante** : en sélectionnant du texte, une pastille apparaît sous la sélection (gras, italique, souligné, lien,
+  surlignage, **commentaire**, **émoji**). Le commentaire s'écrit dans une bulle, avec le passage concerné surligné ;
+  `@nom` assigne le commentaire, `Ctrl+Entrée` l'envoie. Le sélecteur d'émojis a une recherche et des catégories ;
+  choisir un émoji sur une sélection ajoute une *réaction* à ce passage. (Les drapeaux ne sont pas inclus : Windows ne les affiche pas en émojis.)
+- **Menu contextuel** (clic droit) : couper/copier/coller, coller sans mise en forme, suggestions d'orthographe et
+  « Ajouter au dictionnaire », commentaire, lien. Dans un tableau : insérer/supprimer lignes et colonnes, ligne de titre,
+  diviser la cellule, trier, répartir lignes/colonnes à égalité, et **Options du tableau** (bordures, largeur, ligne de titre).
 - **Menu du profil** (l'avatar en haut à droite) : thème **clair / sombre / système** avec aperçus de fenêtre, page toujours blanche,
   **couleur d'accent** (bleu, violet, rose, rouge, orange, vert, graphite), taille de l'interface, mode compact (`Ctrl+Maj+F`), plan,
   correcteur orthographique et sa langue, récupération et versions automatiques.
@@ -61,9 +72,14 @@ plan du document, correcteur orthographique (français et anglais ; ses dictionn
 à la première utilisation, ce qui demande alors une connexion Internet).
 Deux affichages : **Pages** (format Lettre, repères de saut de page) et **Sans pages** (surface continue).
 
+**Menu `/`** — tapez `/` dans une ligne vide pour insérer rapidement : titres, listes, tableau, ligne de séparation, saut de page,
+**encadrés** colorés (information, astuce, attention, danger), **sommaire automatique** (il se met à jour tout seul et
+reste cliquable), etc. Continuez à taper pour filtrer, `Échap` pour fermer.
+
 **Smart Canvas** — tapez `@` pour insérer :
 - des *puces* : Personne (carte de contact), Date, Fichier local, Lieu (ouvre une carte), Lien web ;
-- des *variables* : une valeur (ex. « Nom du client ») modifiée une fois, mise à jour partout ;
+- des *variables* : une valeur (ex. « Nom du client ») modifiée une fois, mise à jour partout. Les modèles (lettre, CV, rapport,
+  proposition, plan, facture) arrivent avec leurs champs prêts à remplir : **Insertion → Remplir les champs** les propose tous d'un coup ;
 - des *blocs* : notes de réunion, brouillon de courriel (s'ouvre dans votre messagerie), suivi de projet
   avec statuts, liste de tâches, tableau.
 
@@ -88,7 +104,8 @@ Les **commentaires** sont attachés à un passage, avec réponses, résolution e
 - Un document ouvert ne peut exécuter aucun code ni charger d'image externe, et ses liens sont limités à
   `http(s)`, `mailto` et « afficher dans le dossier ».
 
-**Exportation** — Word (`.docx`, avec **modifications suivies** et **commentaires**), PDF, HTML, impression.
+**Exportation** — Word (`.docx`, avec **modifications suivies**, **commentaires**, encadrés et sommaire), PDF, HTML (sommaire cliquable),
+**Markdown** (`.md`, format GitHub : tableaux, listes de tâches, encadrés `> [!NOTE]`, images extraites dans un dossier à côté du fichier), impression.
 Ouverture de fichiers `.plume`, `.html` et `.txt`.
 
 ## Ce que Plume ne fait pas (volontairement ou pas encore)
@@ -113,7 +130,8 @@ quand on change d'onglet (le contenu, lui, est conservé intact).
 
 `Ctrl+N` / `Ctrl+T` Nouveau · `Ctrl+O` Ouvrir · `Ctrl+S` Enregistrer · `Ctrl+Maj+S` Enregistrer sous · `Ctrl+P` Imprimer ·
 `Ctrl+W` Fermer l'onglet · `Ctrl+Tab` Onglet suivant · `Alt+Début` Accueil · `Ctrl+F` / `Ctrl+H` Rechercher / remplacer ·
-`Ctrl+K` Lien · `Ctrl+\` Effacer la mise en forme · `Ctrl+Alt+M` Commenter · `@` Insérer ·
+`Ctrl+K` Lien · `Ctrl+\` Effacer la mise en forme · `Ctrl+Alt+M` Commenter · `@` Insérer · `/` Blocs ·
+`Ctrl+Maj+P` Palette de commandes · `Ctrl+Maj+C` Mode concentration ·
 `Ctrl++` / `Ctrl+-` / `Ctrl+0` Zoom de la page · `Ctrl+Maj+F` Mode compact · `F11` Plein écran · `Ctrl+/` Liste des raccourcis
 
 ## Organisation du code
@@ -129,7 +147,13 @@ renderer/      l'interface (HTML/CSS/JavaScript sans dépendance)
   ui.js        outils communs : DOM, fenêtres de dialogue, fenêtres contextuelles, assainissement du HTML
   settings.js  paramètres, carte de profil, fenêtre « Paramètres »
   templates.js modèles de documents
-  editor.js    mise en forme, tableaux, images, menu @, puces, blocs, recherche
+  editor.js    mise en forme, tableaux, images, menus @ et /, puces, encadrés, sommaire, champs, recherche
+  markdown.js  export Markdown (GitHub)
+  palette.js   palette de commandes
+  emoji.js     sélecteur d'émojis (recherche, catégories)
+  selbar.js    barre flottante de mise en forme
+  ctxmenu.js   menu contextuel (orthographe, tableaux)
+  focus.js     mode concentration
   review.js    commentaires et mode Suggestion
   store.js     format de fichier .plume, images dédupliquées, versions
   panels.js    plan, historique des versions, variables

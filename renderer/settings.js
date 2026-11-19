@@ -14,11 +14,12 @@
     ]],
     ['Mise en forme', [
       ['Gras · Italique · Souligné', 'Ctrl+B · Ctrl+I · Ctrl+U'], ['Insérer un lien', 'Ctrl+K'], ['Effacer la mise en forme', 'Ctrl+\\'],
-      ['Annuler · Rétablir', 'Ctrl+Z · Ctrl+Y'], ['Commenter la sélection', 'Ctrl+Alt+M'], ['Puces intelligentes et blocs', '@'],
+      ['Annuler · Rétablir', 'Ctrl+Z · Ctrl+Y'], ['Commenter la sélection', 'Ctrl+Alt+M'], ['Puces intelligentes, champs et blocs', '@'],
+      ['Titres, listes, encadrés, tableau… (début d’une ligne vide)', '/'], ['Coller sans la mise en forme', 'Ctrl+Maj+V'], ['Menu contextuel', 'Clic droit · Maj+F10'],
     ]],
     ['Affichage', [
       ['Rechercher et remplacer', 'Ctrl+F · Ctrl+H'], ['Zoom de la page', 'Ctrl++ · Ctrl+− · Ctrl+0'], ['Mode compact', 'Ctrl+Maj+F'],
-      ['Plein écran', 'F11'], ['Raccourcis clavier', 'Ctrl+/'],
+      ['Plein écran', 'F11'], ['Mode concentration', 'Ctrl+Maj+C · Échap pour quitter'], ['Palette de commandes', 'Ctrl+Maj+P'], ['Raccourcis clavier', 'Ctrl+/'],
     ]],
   ];
 
@@ -36,6 +37,10 @@
       desc: 'Masque les menus et la barre d’outils (Ctrl+Maj+F).' },
     { key: 'outline', section: 'appearance', grp: 'Interface', quick: true, type: 'toggle', def: true, label: 'Plan du document',
       desc: 'Affiche la liste des titres à gauche du document.' },
+    { key: 'selBar', section: 'edit', grp: 'Édition', type: 'toggle', def: true, label: 'Pastille d’actions sous la sélection',
+      desc: 'Mise en forme rapide, commentaire et émoji juste sous le texte sélectionné.' },
+    { key: 'focusDim', section: 'appearance', grp: 'Mode concentration', type: 'toggle', def: true, label: 'Estomper les autres paragraphes',
+      desc: 'En mode concentration (Ctrl+Maj+C), seul le paragraphe en cours reste bien visible.' },
     { key: 'wordCount', section: 'appearance', grp: 'Interface', type: 'toggle', def: true, label: 'Compteur de mots', desc: 'Dans la barre d’état, en bas de la fenêtre.' },
     { key: 'pageZoom', section: 'appearance', grp: 'Document', type: 'select', def: 100, label: 'Zoom des pages',
       desc: 'Niveau de zoom appliqué au document (aussi réglable dans la barre d’outils).',

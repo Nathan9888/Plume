@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webFrame } = require('electron');
 
 const call = (channel, payload) => ipcRenderer.invoke(channel, payload);
 
@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('native', {
   exportDocx: (bytes, name) => call('export:docx', { bytes, name }),
   exportPdf: (name) => call('export:pdf', { name }),
   exportHtml: (html, name) => call('export:html', { html, name }),
+  exportMd: (md, images, name) => call('export:md', { md, images, name }),
   print: () => call('print'),
   pickFile: () => call('dialog:pickFile'),
   pickImage: () => call('dialog:pickImage'),
@@ -19,6 +20,17 @@ contextBridge.exposeInMainWorld('native', {
   toggleFullscreen: () => call('win:fullscreen'),
   setSpellLangs: (mode) => call('spell:langs', mode),
   editCmd: (cmd) => call('edit:cmd', cmd),
+  // Orthographe : le menu contextuel du document est dessiné par Plume, qui interroge le correcteur de Chromium
+  spell: {
+    check: (word) => {
+      try {
+        const w = String(word || '');
+        const bad = !!webFrame.isWordMisspelled(w);
+        return { bad, suggestions: bad ? webFrame.getWordSuggestions(w).slice(0, 5) : [] };
+      } catch (_) { return { bad: false, suggestions: [] }; }
+    },
+    add: (word) => call('spell:add', String(word || '')),
+  },
   recents: {
     list: () => call('recents:list'),
     add: (entry) => call('recents:add', entry),

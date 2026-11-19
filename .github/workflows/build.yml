@@ -5,6 +5,9 @@ on:
   push:
     tags: ['v*']
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -19,3 +22,16 @@ jobs:
         with:
           name: Plume-installateur
           path: dist/*.exe
+      - name: Publier l'installateur dans les Releases
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v$VERSION"
+          cp "dist/Plume Setup $VERSION.exe" "dist/Plume-Setup-$VERSION.exe"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "dist/Plume-Setup-$VERSION.exe" --clobber
+          else
+            gh release create "$TAG" "dist/Plume-Setup-$VERSION.exe" --target "$GITHUB_SHA" --title "Plume $VERSION" --notes "Installateur Windows de Plume $VERSION. Windows peut afficher un avertissement SmartScreen (installateur non signé) : Informations complémentaires, puis Exécuter quand même."
+          fi

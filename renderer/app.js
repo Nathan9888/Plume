@@ -344,6 +344,7 @@
     refreshChrome();
     P.renderPanel();
     renderOutline();
+    if (P.updateTocs) P.updateTocs();
     scroller.scrollTop = 0;
     if (state.path && !state.dirty) addRecent();
   }
@@ -436,7 +437,8 @@
   /** Nouveau document (vierge ou à partir d'un modèle) dans un nouvel onglet. */
   function newFromTemplate(tpl) {
     tpl = tpl || P.templates[0];
-    return openTab(() => {
+    const tab = openTab(() => {
+      state.variables = Object.fromEntries((tpl.vars || []).map((n) => [n, '']));
       ed.innerHTML = P.sanitize(tpl.html()) || '<p><br></p>';
       if (P.fixChecklists) P.fixChecklists();
       P.refreshVars();
@@ -444,6 +446,9 @@
       afterLoad({ path: null });
       P.updateCounts();
     });
+    // Modèle à champs : on propose tout de suite de les remplir (un seul formulaire)
+    if (tab && tpl.vars && tpl.vars.length && P.fillFields) setTimeout(() => P.fillFields({ fromTemplate: true }), 60);
+    return tab;
   }
   app.newFromTemplate = newFromTemplate;
   const newDoc = () => newFromTemplate(P.templates[0]);
@@ -499,6 +504,7 @@
   async function exportDocx() {
     if (!inDoc() || !(await P.runDlp(true))) return;
     try {
+      if (P.updateTocs) P.updateTocs();
       const bytes = PlumeDocx.build(ed, { author: state.author || 'Moi', title: state.title, comments: state.comments });
       report(await native.exportDocx(bytes, safeName()), 'Word');
     } catch (err) { P.toast('Échec de la conversion en Word : ' + (err && err.message ? err.message : err), 6000); }
@@ -506,6 +512,7 @@
 
   async function exportPdf() {
     if (!inDoc() || !(await P.runDlp(true))) return;
+    if (P.updateTocs) P.updateTocs();
     report(await native.exportPdf(safeName()), 'PDF');
   }
 
@@ -513,23 +520,44 @@
     'h1{font-size:20pt}h2{font-size:16pt}h3{font-size:14pt}table{border-collapse:collapse}td,th{border:1px solid #bbb;padding:4px 8px}img{max-width:100%}' +
     'blockquote{border-left:3px solid #ccc;margin-left:0;padding-left:14px;color:#555}ul.checklist{list-style:none;padding-left:4px}' +
     '.chip{background:#e8eef9;border-radius:10px;padding:0 6px}ins.sg-ins{color:#188038;text-decoration:underline}del.sg-del{color:#c5221f}' +
-    '.pagebreak{border-top:1px dashed #bbb;margin:24px 0}';
+    '.pagebreak{border-top:1px dashed #bbb;margin:24px 0}' +
+    '.callout{margin:12px 0;padding:10px 14px;border-radius:10px;border:1px solid #d0d7e2;border-left:5px solid #0a84ff;background:#eaf3ff}.callout>:first-child{margin-top:0}.callout>:last-child{margin-bottom:0}' +
+    '.callout-tip{background:#e9f8ee;border-color:#cfe9d7;border-left-color:#30a14e}.callout-warn{background:#fff5e0;border-color:#f3e1b8;border-left-color:#ff9f0a}.callout-danger{background:#ffecea;border-color:#f3cdc9;border-left-color:#ff453a}' +
+    '.toc{margin:14px 0;padding:12px 16px;border-radius:10px;background:#f5f5f7}.toc-title{font-weight:700;margin-bottom:6px}.toc-item{margin:2px 0}.toc-item a{color:inherit;text-decoration:none}.toc-item.lvl2{padding-left:16px}.toc-item.lvl3{padding-left:32px}' +
+    'table.tbl-none td,table.tbl-none th{border-color:transparent}table.tbl-thick td,table.tbl-thick th{border-width:2px;border-color:#555}' +
+    '.cmt.react{border-bottom:1px dotted #999}.cmt.react[data-emoji]::after{content:attr(data-emoji);font-size:.8em;margin-left:2px}';
 
   async function exportHtml() {
     if (!inDoc() || !(await P.runDlp(true))) return;
+    if (P.updateTocs) P.updateTocs();
     const c = ed.cloneNode(true);
     c.querySelectorAll('.noexport').forEach((n) => n.remove());
+    Array.from(c.querySelectorAll('h1, h2, h3')).filter((n) => !n.closest('.toc') && n.textContent.trim()).forEach((n, i) => { n.id = 'h' + i; });
+    c.querySelectorAll('.toc-item').forEach((t) => { const l = document.createElement('a'); l.href = '#h' + t.dataset.h; l.textContent = t.textContent; t.replaceChildren(l); });
     c.querySelectorAll('.cmt').forEach((n) => P.unwrap(n));
     c.querySelectorAll('input[type="checkbox"]').forEach((i) => i.setAttribute('disabled', ''));
+    c.querySelectorAll('[contenteditable]').forEach((n) => n.removeAttribute('contenteditable'));
     const html = `<!doctype html>\n<html lang="fr"><head><meta charset="utf-8"><title>${esc(state.title || 'Document')}</title><style>${EXPORT_CSS}</style></head><body><main>${c.innerHTML}</main></body></html>`;
     report(await native.exportHtml(html, safeName()), 'HTML');
   }
 
+  async function exportMd() {
+    if (!inDoc() || !(await P.runDlp(true))) return;
+    if (P.updateTocs) P.updateTocs();
+    try {
+      const { md, images } = PlumeMd.build(ed);
+      const res = await native.exportMd(md, images, safeName());
+      if (res && !res.error && res.path && images.length) P.toast('Markdown : ' + fileTitle(res.path) + ' enregistré, avec ' + images.length + ' image' + (images.length > 1 ? 's' : '') + ' dans un dossier voisin.', 5000);
+      else report(res, 'Markdown');
+    } catch (err) { P.toast('Échec de l’exportation Markdown : ' + (err && err.message ? err.message : err), 6000); }
+  }
+
   async function printDoc() {
     if (!inDoc() || !(await P.runDlp(true))) return;
+    if (P.updateTocs) P.updateTocs();
     await native.print();
   }
-  Object.assign(app, { exportDocx, exportPdf, exportHtml, print: printDoc });
+  Object.assign(app, { exportDocx, exportPdf, exportHtml, exportMd, print: printDoc });
 
   /* ---------- Mot de passe ---------- */
   async function setPassword() {

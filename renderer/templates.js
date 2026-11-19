@@ -5,6 +5,9 @@
   const today = () => new Date().toLocaleDateString('fr-CA', { year: 'numeric', month: 'long', day: 'numeric' });
   const status = (s, label) => `<span class="chip chip-status" contenteditable="false" data-type="status" data-status="${s}">${label}</span>&nbsp;`;
   const rows = (n, cols) => ('<tr>' + '<td><br></td>'.repeat(cols) + '</tr>').repeat(n);
+  /** Champ du document (variable) : se remplit via « Remplir les champs » et se met à jour partout. */
+  const v = (name) => `<span class="chip chip-var" contenteditable="false" data-type="var" data-var="${name.replace(/"/g, '&quot;')}">«${name}»</span>&nbsp;`;
+  const toc = '<div class="toc" contenteditable="false" data-block="toc" title="Sommaire automatique"><div class="toc-title">Sommaire</div><div class="toc-body"><p class="toc-empty">…</p></div></div>';
   const head = (cells) => '<tr>' + cells.map((c) => `<th>${c}</th>`).join('') + '</tr>';
 
   P.templates = [
@@ -13,25 +16,27 @@
       html: () => '<p><br></p>',
     },
     {
-      id: 'letter', name: 'Lettre', sub: 'Format courant', docTitle: 'Lettre',
+      id: 'letter', name: 'Lettre', sub: 'Avec champs', docTitle: 'Lettre',
+      vars: ['Votre nom', 'Votre adresse', 'Votre courriel', 'Nom du destinataire', 'Organisation du destinataire', 'Objet de la lettre'],
       html: () => `
-        <p>[Votre nom]<br>[Adresse]<br>[Ville (Québec) Code postal]<br>[Téléphone] · [Courriel]</p>
+        <p>${v('Votre nom')}<br>${v('Votre adresse')}<br>[Ville (Québec) Code postal]<br>[Téléphone] · ${v('Votre courriel')}</p>
         <p>${today()}</p>
-        <p>[Nom du destinataire]<br>[Titre]<br>[Organisation]<br>[Adresse]</p>
-        <p><b>Objet : [objet de la lettre]</b></p>
+        <p>${v('Nom du destinataire')}<br>[Titre]<br>${v('Organisation du destinataire')}<br>[Adresse]</p>
+        <p><b>Objet : ${v('Objet de la lettre')}</b></p>
         <p>Madame, Monsieur,</p>
         <p>[Introduction : expliquez en une ou deux phrases la raison de votre lettre.]</p>
         <p>[Développement : donnez les détails, les faits ou les arguments utiles.]</p>
         <p>[Conclusion : indiquez ce que vous attendez du destinataire et remerciez-le.]</p>
         <p>Veuillez agréer, Madame, Monsieur, mes salutations distinguées.</p>
         <p><br></p>
-        <p>[Votre nom]</p>`,
+        <p>${v('Votre nom')}</p>`,
     },
     {
       id: 'cv', name: 'Curriculum vitæ', sub: 'Chronologique', docTitle: 'Curriculum vitæ',
+      vars: ['Prénom Nom', 'Ville', 'Téléphone', 'Courriel'],
       html: () => `
-        <h1>[Prénom Nom]</h1>
-        <p>[Ville] · [Téléphone] · [Courriel] · [Profil en ligne]</p>
+        <h1>${v('Prénom Nom')}</h1>
+        <p>${v('Ville')}· ${v('Téléphone')}· ${v('Courriel')}· [Profil en ligne]</p>
         <h2>Profil</h2>
         <p>[Deux ou trois phrases qui résument votre expérience et ce que vous recherchez.]</p>
         <h2>Expérience professionnelle</h2>
@@ -67,11 +72,13 @@
         <p>Prochaine rencontre : [date et lieu]</p>`,
     },
     {
-      id: 'report', name: 'Rapport', sub: 'Structuré', docTitle: 'Rapport',
+      id: 'report', name: 'Rapport', sub: 'Avec sommaire', docTitle: 'Rapport',
+      vars: ['Titre du rapport', 'Auteur'],
       html: () => `
-        <h1>[Titre du rapport]</h1>
-        <p><i>[Auteur] · ${today()}</i></p>
-        <h2>Sommaire</h2>
+        <h1>${v('Titre du rapport')}</h1>
+        <p><i>${v('Auteur')}· ${today()}</i></p>
+        ${toc}
+        <h2>Résumé</h2>
         <p>[Résumé en quelques lignes : contexte, constats principaux, recommandations.]</p>
         <h2>1. Introduction</h2>
         <p>[Contexte, objectif et portée du rapport.]</p>
@@ -87,9 +94,10 @@
     },
     {
       id: 'proposal', name: 'Proposition de projet', sub: 'Budget et échéancier', docTitle: 'Proposition de projet',
+      vars: ['Nom du projet', 'Nom du client', 'Date de livraison'],
       html: () => `
         <h1>Proposition de projet</h1>
-        <p><i>[Nom du projet] · Préparé pour [client] · ${today()}</i></p>
+        <p><i>${v('Nom du projet')}· Préparé pour ${v('Nom du client')}· ${today()}</i></p>
         <h2>Contexte</h2>
         <p>[Situation actuelle et problème à résoudre.]</p>
         <h2>Objectifs</h2>
@@ -97,6 +105,7 @@
         <h2>Livrables</h2>
         <table><tbody>${head(['Livrable', 'Description', 'Date'])}${rows(3, 3)}</tbody></table>
         <h2>Échéancier</h2>
+        <p>Livraison prévue : ${v('Date de livraison')}</p>
         <p>[Grandes étapes et jalons.]</p>
         <h2>Budget</h2>
         <table><tbody>${head(['Poste', 'Quantité', 'Prix unitaire', 'Total'])}${rows(3, 4)}</tbody></table>
@@ -105,9 +114,10 @@
     },
     {
       id: 'plan', name: 'Suivi de projet', sub: 'Avec statuts', docTitle: 'Suivi de projet',
+      vars: ['Nom du projet'],
       html: () => `
         <h1>Suivi de projet</h1>
-        <p><i>[Nom du projet] · mis à jour le ${today()}</i></p>
+        <p><i>${v('Nom du projet')}· mis à jour le ${today()}</i></p>
         <table><tbody>${head(['Tâche', 'Responsable', 'Échéance', 'Statut'])}
           <tr><td>[Tâche]</td><td><br></td><td><br></td><td>${status('doing', 'En cours')}</td></tr>
           <tr><td>[Tâche]</td><td><br></td><td><br></td><td>${status('todo', 'À faire')}</td></tr>
@@ -130,12 +140,13 @@
     },
     {
       id: 'invoice', name: 'Facture', sub: 'TPS et TVQ', docTitle: 'Facture',
+      vars: ['Votre entreprise', 'Numéro de facture', 'Nom du client', 'Numéro TPS', 'Numéro TVQ', 'Échéance de paiement'],
       html: () => `
         <h1>Facture</h1>
-        <p>[Votre entreprise]<br>[Adresse] · [Téléphone] · [Courriel]<br>N° TPS : [numéro] · N° TVQ : [numéro]</p>
+        <p>${v('Votre entreprise')}<br>[Adresse] · [Téléphone] · [Courriel]<br>N° TPS : ${v('Numéro TPS')}· N° TVQ : ${v('Numéro TVQ')}</p>
         <table><tbody>
-          <tr><th>Facture n°</th><td>[0001]</td><th>Date</th><td>${today()}</td></tr>
-          <tr><th>Client</th><td>[Nom du client]</td><th>Échéance</th><td>[30 jours]</td></tr>
+          <tr><th>Facture n°</th><td>${v('Numéro de facture')}</td><th>Date</th><td>${today()}</td></tr>
+          <tr><th>Client</th><td>${v('Nom du client')}</td><th>Échéance</th><td>${v('Échéance de paiement')}</td></tr>
         </tbody></table>
         <table><tbody>${head(['Description', 'Quantité', 'Prix unitaire', 'Montant'])}${rows(4, 4)}
           <tr><td colspan="3"><b>Sous-total</b></td><td><br></td></tr>
