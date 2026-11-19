@@ -8,7 +8,8 @@
   "license": "MIT",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win nsis --publish never"
+    "dist": "electron-builder --win nsis --publish never",
+    "build:web": "node web/build.js"
   },
   "devDependencies": {
     "electron": "^44.11.3",

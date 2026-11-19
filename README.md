@@ -30,6 +30,19 @@ npm run dist       :: pour fabriquer l'installateur
 > Windows peut afficher « Windows a protégé votre ordinateur » (SmartScreen) : l'installateur n'est pas signé
 > numériquement. Cliquez sur **Informations complémentaires** puis **Exécuter quand même**.
 
+### Version navigateur (un seul fichier `Plume.html`)
+
+Le même éditeur existe sous forme d'**un seul fichier HTML** : double-cliquez dessus, il s'ouvre dans Chrome, Edge ou Firefox, sans installation
+ni connexion Internet. Il est joint à chaque *Release* du dépôt (`Plume.html`), ou se fabrique avec `npm run build:web` (fichier `dist-web\Plume.html`).
+
+- **Chrome et Edge** : « Ouvrir » et « Enregistrer » travaillent directement sur vos fichiers `.plume` (le navigateur demande l'autorisation).
+  Dans **Firefox et Safari**, l'enregistrement se fait par téléchargement.
+- Les fichiers `.plume` sont **les mêmes** que ceux de la version Windows, **y compris chiffrés par mot de passe** (même format, mêmes algorithmes).
+- Word, HTML et Markdown sont téléchargés ; pour le PDF, choisissez « Enregistrer au format PDF » dans la fenêtre d'impression.
+- Différences : pas d'« Afficher dans le dossier » ; les images d'un export Markdown sont intégrées au fichier ; le correcteur orthographique est celui du navigateur
+  (soulignement sans suggestions dans le menu clic droit) ; `Ctrl+N`, `Ctrl+T` et `Ctrl+W` sont réservés par le navigateur — utilisez les menus.
+- Les réglages et la récupération automatique restent dans le navigateur, propres à ce fichier et à ce navigateur.
+
 ## L'interface (esthétique macOS)
 
 Plume adopte le langage visuel de macOS : police système, coins arrondis, icônes en traits fins, barres de défilement discrètes,
@@ -154,6 +167,7 @@ renderer/      l'interface (HTML/CSS/JavaScript sans dépendance)
   selbar.js    barre flottante de mise en forme
   ctxmenu.js   menu contextuel (orthographe, tableaux)
   focus.js     mode concentration
+web/           version navigateur : native-web.js (remplace le pont Electron) et build.js (assemble Plume.html)
   review.js    commentaires et mode Suggestion
   store.js     format de fichier .plume, images dédupliquées, versions
   panels.js    plan, historique des versions, variables

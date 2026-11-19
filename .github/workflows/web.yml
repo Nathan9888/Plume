@@ -1,0 +1,33 @@
+name: Construire la version navigateur (Plume.html)
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node web/build.js
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Plume-html
+          path: dist-web/Plume.html
+      - name: Joindre Plume.html à la Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v$VERSION"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --target "$GITHUB_SHA" --title "Plume $VERSION" --notes "Plume $VERSION. Installateur Windows : Plume-Setup-$VERSION.exe. Version navigateur : Plume.html (un seul fichier, s'ouvre dans Chrome, Edge ou Firefox)." || true
+          fi
+          gh release upload "$TAG" dist-web/Plume.html --clobber
