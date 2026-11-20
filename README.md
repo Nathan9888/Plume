@@ -5,7 +5,7 @@ vos documents restent sur votre ordinateur (fichiers `.plume`).
 
 ## Obtenir l'application (.exe)
 
-Il existe deux façons. Dans les deux cas, vous obtenez un installateur `Plume Setup 1.3.0.exe`.
+Il existe deux façons. Dans les deux cas, vous obtenez un installateur `Plume Setup 1.3.1.exe`.
 
 ### Option A — Sur votre PC (si vous pouvez installer des logiciels)
 
@@ -18,14 +18,14 @@ npm start          :: pour essayer l'application tout de suite
 npm run dist       :: pour fabriquer l'installateur
 ```
 
-3. L'installateur se trouve dans `dist\Plume Setup 1.3.0.exe`. Double-cliquez pour l'installer.
+3. L'installateur se trouve dans `dist\Plume Setup 1.3.1.exe`. Double-cliquez pour l'installer.
 
 ### Option B — Sans rien installer (GitHub Actions)
 
 1. Créez un dépôt GitHub et envoyez-y le contenu de ce dossier.
 2. Onglet **Actions** → **Construire l'installateur Windows** → **Run workflow**.
 3. Quand c'est terminé (environ 3 minutes), l'installateur est publié dans la section **Releases** du dépôt
-   (version « Plume 1.3.0 ») et aussi disponible comme élément **Plume-installateur** au bas de la page de l'exécution.
+   (version « Plume 1.3.1 ») et aussi disponible comme élément **Plume-installateur** au bas de la page de l'exécution.
 
 > Windows peut afficher « Windows a protégé votre ordinateur » (SmartScreen) : l'installateur n'est pas signé
 > numériquement. Cliquez sur **Informations complémentaires** puis **Exécuter quand même**.
@@ -96,6 +96,12 @@ dans `dictionaries/`, convertis en fichiers `renderer/dict-*.js` par `node tools
 redimensionnements horizontal, vertical et diagonaux), identiques dans l'application Windows et dans le navigateur.
 **Paramètres → Apparence → Curseur** : activer/désactiver, **taille** (20 à 64 px) et **couleur** (noir, blanc, couleur d'accent, bleu, rouge,
 orange, vert, violet, rose, graphite), avec aperçu en direct des neuf curseurs.
+
+**Menus déroulants façon macOS** — les listes (zoom, style de paragraphe, police, réglages, tri de l'accueil…) et la palette de couleurs
+(couleur du texte, surlignage) n'utilisent plus les menus du navigateur : même verre dépoli, coins arrondis, coche devant la valeur
+choisie et surbrillance de la couleur d'accent que les autres menus. Dans la barre d'outils la liste s'ouvre sous le bouton ; dans les
+réglages elle se superpose au bouton, la valeur choisie en face (comme sur un Mac). Les polices s'y affichent dans leur propre police
+et les titres à leur taille. Clavier : flèches, Début/Fin, Entrée, Échap, et frappe des premières lettres pour aller à une entrée.
 
 **Menu `/`** — tapez `/` dans une ligne vide pour insérer rapidement : titres, listes, tableau, ligne de séparation, saut de page,
 **encadrés** colorés (information, astuce, attention, danger), **sommaire automatique** (il se met à jour tout seul et
@@ -181,6 +187,7 @@ renderer/      l'interface (HTML/CSS/JavaScript sans dépendance)
   hunspell.js  moteur de correction compatible Hunspell · dict-fr.js / dict-en.js : dictionnaires intégrés
   spell.js     soulignement ondulé, pastille de correction, carte « Vérification »
   cursors.js   curseurs dessinés (taille et couleur réglables)
+  selects.js   listes déroulantes (<select>) au style macOS · colorpop.js : palette de couleurs
   focus.js     mode concentration
 web/           version navigateur : native-web.js (remplace le pont Electron) et build.js (assemble Plume.html)
   review.js    commentaires et mode Suggestion
