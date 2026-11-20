@@ -24,9 +24,8 @@
   }
 
   function spellInfo(w) {
-    const n = nat();
-    if (!w || !n || !n.spell || !P.settings.get('spell')) return null;
-    try { const r = n.spell.check(w.text); return r && r.bad ? r : null; } catch (_) { return null; }
+    if (!w || !P.spell || !P.settings.get('spell')) return null;
+    try { return P.spell.isBad(w.text) ? { bad: true, suggestions: P.spell.suggest(w.text) } : null; } catch (_) { return null; }
   }
 
   function items(ctx) {
@@ -51,7 +50,7 @@
         document.execCommand('insertText', false, s);
       } }));
       if (!sug.length) list.push({ label: 'Aucune suggestion', disabled: true });
-      list.push({ label: 'Ajouter au dictionnaire', action: () => { const n = nat(); if (n && n.spell && n.spell.add) n.spell.add(w.text); P.toast('« ' + w.text + ' » ajouté au dictionnaire.'); } }, '-');
+      list.push({ label: 'Ajouter au dictionnaire', action: () => { P.spell.add(w.text); P.toast('« ' + w.text + ' » ajouté au dictionnaire personnel.'); } }, '-');
     }
 
     list.push(

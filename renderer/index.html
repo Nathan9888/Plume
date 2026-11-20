@@ -26,6 +26,8 @@
     <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4.50 9.50 9 5M4.50 9.50H14a5.50 5.50 0 0 1 0 11h-3"/></symbol>
     <symbol id="i-redo" viewBox="0 0 24 24"><path d="M15 14l4.50-4.50L15 5M19.50 9.50H10a5.50 5.50 0 0 0 0 11h3"/></symbol>
     <symbol id="i-print" viewBox="0 0 24 24"><path d="M7 8.50V4h10v4.50M7 17H5.50A1.50 1.50 0 0 1 4 15.50v-5A2 2 0 0 1 6 8.50h12a2 2 0 0 1 2 2v5a1.50 1.50 0 0 1-1.50 1.50H17M7 14h10v6H7z"/></symbol>
+    <symbol id="i-ignore" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M9 9l6 6M15 9l-6 6"/></symbol>
+    <symbol id="i-dots-v" viewBox="0 0 24 24"><circle cx="12" cy="5.5" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="18.5" r="1.4" fill="currentColor" stroke="none"/></symbol>
     <symbol id="i-spell" viewBox="0 0 24 24"><path d="M3.50 16.50 7.50 6l4 10.50M5 12.80h5M13.50 17l3 3 5-6"/></symbol>
     <symbol id="i-bold" viewBox="0 0 24 24"><path d="M8 5.50h5a3.20 3.20 0 0 1 0 6.50H8zM8 12h5.80a3.50 3.50 0 0 1 0 7H8z"/></symbol>
     <symbol id="i-italic" viewBox="0 0 24 24"><path d="M10 5h7M7 19h7M14.50 5 9.50 19"/></symbol>
@@ -232,7 +234,7 @@
 
         <div id="canvas">
           <div id="scroller">
-            <div id="page" class="sheet" contenteditable="true" spellcheck="true" lang="fr"><p><br></p></div>
+            <div id="page" class="sheet" contenteditable="true" spellcheck="false" lang="fr"><p><br></p></div>
           </div>
           <div id="findbar" hidden>
             <input id="find-q" type="text" placeholder="Rechercher" spellcheck="false">
@@ -295,6 +297,11 @@
 <script src="selbar.js"></script>
 <script src="ctxmenu.js"></script>
 <script src="focus.js"></script>
+  <script src="cursors.js"></script>
+  <script src="hunspell.js"></script>
+  <script src="dict-fr.js"></script>
+  <script src="dict-en.js"></script>
+  <script src="spell.js"></script>
 <script src="home.js"></script>
 <script src="start.js"></script>
 </body>

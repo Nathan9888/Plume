@@ -256,6 +256,7 @@
       { label: 'Palette de commandes…', hint: 'Ctrl+Maj+P', icon: 'i-search', action: () => P.palette.open() },
       '-',
       { label: 'Correcteur orthographique', icon: 'i-spell', checked: () => C().get('spell'), action: () => C().set('spell', !C().get('spell')) },
+      { label: 'Vérification de l’orthographe…', icon: 'i-spell', hint: 'Ctrl+Alt+X', action: () => P.actions.spellcard() },
       { label: 'Statistiques du document…', action: stats },
       { label: 'Rechercher et remplacer…', hint: 'Ctrl+H', icon: 'i-search', action: () => P.openFind() },
       '-',

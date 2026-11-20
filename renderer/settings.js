@@ -14,7 +14,7 @@
     ]],
     ['Mise en forme', [
       ['Gras · Italique · Souligné', 'Ctrl+B · Ctrl+I · Ctrl+U'], ['Insérer un lien', 'Ctrl+K'], ['Effacer la mise en forme', 'Ctrl+\\'],
-      ['Annuler · Rétablir', 'Ctrl+Z · Ctrl+Y'], ['Commenter la sélection', 'Ctrl+Alt+M'], ['Puces intelligentes, champs et blocs', '@'],
+      ['Annuler · Rétablir', 'Ctrl+Z · Ctrl+Y'], ['Commenter la sélection', 'Ctrl+Alt+M'], ['Vérification de l’orthographe', 'Ctrl+Alt+X'], ['Puces intelligentes, champs et blocs', '@'],
       ['Titres, listes, encadrés, tableau… (début d’une ligne vide)', '/'], ['Coller sans la mise en forme', 'Ctrl+Maj+V'], ['Menu contextuel', 'Clic droit · Maj+F10'],
     ]],
     ['Affichage', [
@@ -39,6 +39,13 @@
       desc: 'Affiche la liste des titres à gauche du document.' },
     { key: 'selBar', section: 'edit', grp: 'Édition', type: 'toggle', def: true, label: 'Pastille d’actions sous la sélection',
       desc: 'Mise en forme rapide, commentaire et émoji juste sous le texte sélectionné.' },
+    { key: 'cursorOn', section: 'appearance', grp: 'Curseur', type: 'toggle', def: true, label: 'Curseur personnalisé',
+      desc: 'Flèche, main, curseur de texte, roue d’attente… dessinés dans le style macOS, à l’intérieur de Plume.' },
+    { key: 'cursorSize', section: 'appearance', grp: 'Curseur', type: 'stepper', def: 32, label: 'Taille du curseur',
+      options: [20, 24, 28, 32, 40, 48, 56, 64], fmt: (v) => v + ' px' },
+    { key: 'cursorColor', section: 'appearance', grp: 'Curseur', type: 'swatch', def: 'black', label: 'Couleur du curseur',
+      options: [['black', 'Noir'], ['white', 'Blanc'], ['graphite', 'Graphite'], ['blue', 'Bleu'], ['purple', 'Violet'], ['pink', 'Rose'], ['red', 'Rouge'], ['orange', 'Orange'], ['green', 'Vert'], ['accent', 'Couleur d’accent']] },
+    { key: 'cursorPreview', section: 'appearance', grp: 'Curseur', type: 'cursors', label: 'Aperçu' },
     { key: 'focusDim', section: 'appearance', grp: 'Mode concentration', type: 'toggle', def: true, label: 'Estomper les autres paragraphes',
       desc: 'En mode concentration (Ctrl+Maj+C), seul le paragraphe en cours reste bien visible.' },
     { key: 'wordCount', section: 'appearance', grp: 'Interface', type: 'toggle', def: true, label: 'Compteur de mots', desc: 'Dans la barre d’état, en bas de la fenêtre.' },
@@ -50,7 +57,7 @@
 
     { key: 'spell', section: 'edit', grp: 'Orthographe', quick: true, type: 'toggle', def: true, label: 'Correcteur orthographique' },
     { key: 'spellLang', section: 'edit', grp: 'Orthographe', quick: true, type: 'select', def: 'both', label: 'Langue du correcteur',
-      desc: 'Les dictionnaires se téléchargent à la première utilisation (connexion Internet requise).',
+      desc: 'Dictionnaires intégrés : aucune connexion Internet nécessaire. Un clic sur un mot souligné propose la correction.',
       options: [['both', 'Français et anglais'], ['fr', 'Français'], ['en', 'Anglais']] },
     { key: 'openMode', section: 'edit', grp: 'Ouverture', type: 'select', def: 'edit', label: 'Mode à l’ouverture d’un fichier',
       desc: 'Choisissez « Lecture seule » pour éviter de modifier un document par accident.',
@@ -92,7 +99,10 @@
 
   const APPLY = {
     theme() { root.dataset.theme = resolvedTheme(); syncOverlay(); },
-    accent() { root.dataset.accent = S.accent; },
+    accent() { root.dataset.accent = S.accent; if (P.cursors && S.cursorColor === 'accent') P.cursors.refresh(); },
+    cursorOn() { if (P.cursors) P.cursors.refresh(); },
+    cursorSize() { if (P.cursors) P.cursors.refresh(); },
+    cursorColor() { if (P.cursors) P.cursors.refresh(); },
     pageLight() { document.body.classList.toggle('page-light', S.pageLight); },
     uiZoom() { const n = nat(); if (n && n.setUiZoom) n.setUiZoom(S.uiZoom / 100); },
     compact() { document.body.classList.toggle('compact', S.compact); },
@@ -100,8 +110,8 @@
     pageZoom() { root.style.setProperty('--pz', String(S.pageZoom / 100)); const z = P.$('#tb-zoom'); if (z) z.value = String(S.pageZoom); },
     pageGuides() { document.body.classList.toggle('noguides', !S.pageGuides); },
     wordCount() { document.body.classList.toggle('nocount', !S.wordCount); },
-    spell() { P.editor.spellcheck = S.spell; const b = P.$('#tb-spell'); if (b) b.classList.toggle('on', S.spell); },
-    spellLang() { const n = nat(); if (n && n.setSpellLangs) n.setSpellLangs(S.spellLang); },
+    spell() { P.editor.spellcheck = false; const b = P.$('#tb-spell'); if (b) b.classList.toggle('on', S.spell); if (P.spell) P.spell.refresh(); },
+    spellLang() { if (P.spell) P.spell.refresh(); },
   };
 
   function set(key, value) {
@@ -201,6 +211,12 @@
       bind(wrap, d.key, () => btns.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.c === S[d.key]))));
       return wrap;
     }
+    if (d.type === 'cursors') {
+      const wrap = h('div', { class: 'cur-prev', role: 'img', 'aria-label': 'Aperçu des curseurs' });
+      const fill = () => { if (P.cursors) P.cursors.preview(wrap); };
+      ['cursorColor', 'cursorSize', 'cursorOn'].forEach((k) => bind(wrap, k, fill));
+      return wrap;
+    }
     if (d.type === 'stepper') {
       const out = h('output', { 'aria-live': 'polite' });
       const step = (dir) => {
@@ -237,7 +253,7 @@
   }
   P.svgIcon = svgIcon;
 
-  const rowOf = (d, cls) => h('div', { class: cls + (d.type === 'appearance' ? ' stack' : '') }, h('div', { class: 'lbl' }, d.label, d.desc && cls === 'set-row' ? h('span', { class: 'desc', text: d.desc }) : null), control(d));
+  const rowOf = (d, cls) => h('div', { class: cls + (d.type === 'appearance' || d.type === 'cursors' ? ' stack' : '') }, h('div', { class: 'lbl' }, d.label, d.desc && cls === 'set-row' ? h('span', { class: 'desc', text: d.desc }) : null), control(d));
 
   /* ---------- Carte de profil (paramètres rapides) ---------- */
   P.settings.openProfile = function (anchor) {

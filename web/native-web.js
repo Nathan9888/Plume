@@ -185,7 +185,7 @@
   }
 
   async function saveDocument({ path, content, password, saveAs, name }) {
-    const data = password ? await encrypt(content, password) : enc.encode(content);
+    const data = password ? await busy(() => encrypt(content, password)) : enc.encode(content);
     let h = path && !saveAs ? handles.get(path) : null;
     if (!h && FSA) {
       try {
@@ -232,6 +232,13 @@
     }
   }
 
+  /** Roue d'attente (curseur) pendant un calcul long comme le chiffrement. */
+  async function busy(fn) {
+    document.documentElement.classList.add('busy');
+    await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 30)));
+    try { return await fn(); } finally { document.documentElement.classList.remove('busy'); }
+  }
+
   const ready = (async () => ({ version: VERSION, electron: '', chrome: '', file: null }))();
 
   window.native = {
@@ -240,7 +247,7 @@
     open: openDocument,
     save: saveDocument,
     decrypt: async (b64, password) => {
-      try { return { text: await decrypt(b64decode(b64), password) }; } catch (_) { return { error: 'Mot de passe incorrect ou fichier endommagé.' }; }
+      try { return { text: await busy(() => decrypt(b64decode(b64), password)) }; } catch (_) { return { error: 'Mot de passe incorrect ou fichier endommagé.' }; }
     },
     exportDocx: async (bytes, name) => { const n = safeName(name, 'docx'); download(new Uint8Array(bytes), n, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'); return { path: n }; },
     exportHtml: async (html, name) => { const n = safeName(name, 'html'); download(html, n, 'text/html;charset=utf-8'); return { path: n }; },

@@ -5,7 +5,7 @@ vos documents restent sur votre ordinateur (fichiers `.plume`).
 
 ## Obtenir l'application (.exe)
 
-Il existe deux façons. Dans les deux cas, vous obtenez un installateur `Plume Setup 1.2.0.exe`.
+Il existe deux façons. Dans les deux cas, vous obtenez un installateur `Plume Setup 1.3.0.exe`.
 
 ### Option A — Sur votre PC (si vous pouvez installer des logiciels)
 
@@ -18,14 +18,14 @@ npm start          :: pour essayer l'application tout de suite
 npm run dist       :: pour fabriquer l'installateur
 ```
 
-3. L'installateur se trouve dans `dist\Plume Setup 1.2.0.exe`. Double-cliquez pour l'installer.
+3. L'installateur se trouve dans `dist\Plume Setup 1.3.0.exe`. Double-cliquez pour l'installer.
 
 ### Option B — Sans rien installer (GitHub Actions)
 
 1. Créez un dépôt GitHub et envoyez-y le contenu de ce dossier.
 2. Onglet **Actions** → **Construire l'installateur Windows** → **Run workflow**.
 3. Quand c'est terminé (environ 3 minutes), l'installateur est publié dans la section **Releases** du dépôt
-   (version « Plume 1.2.0 ») et aussi disponible comme élément **Plume-installateur** au bas de la page de l'exécution.
+   (version « Plume 1.3.0 ») et aussi disponible comme élément **Plume-installateur** au bas de la page de l'exécution.
 
 > Windows peut afficher « Windows a protégé votre ordinateur » (SmartScreen) : l'installateur n'est pas signé
 > numériquement. Cliquez sur **Informations complémentaires** puis **Exécuter quand même**.
@@ -39,8 +39,7 @@ ni connexion Internet. Il est joint à chaque *Release* du dépôt (`Plume.html`
   Dans **Firefox et Safari**, l'enregistrement se fait par téléchargement.
 - Les fichiers `.plume` sont **les mêmes** que ceux de la version Windows, **y compris chiffrés par mot de passe** (même format, mêmes algorithmes).
 - Word, HTML et Markdown sont téléchargés ; pour le PDF, choisissez « Enregistrer au format PDF » dans la fenêtre d'impression.
-- Différences : pas d'« Afficher dans le dossier » ; les images d'un export Markdown sont intégrées au fichier ; le correcteur orthographique est celui du navigateur
-  (soulignement sans suggestions dans le menu clic droit) ; `Ctrl+N`, `Ctrl+T` et `Ctrl+W` sont réservés par le navigateur — utilisez les menus.
+- Différences : pas d'« Afficher dans le dossier » ; les images d'un export Markdown sont intégrées au fichier ; le correcteur orthographique est **le même** que dans la version Windows (dictionnaires intégrés au fichier) ; `Ctrl+N`, `Ctrl+T` et `Ctrl+W` sont réservés par le navigateur — utilisez les menus.
 - Les réglages et la récupération automatique restent dans le navigateur, propres à ce fichier et à ce navigateur.
 
 ## L'interface (esthétique macOS)
@@ -81,9 +80,22 @@ texte moderne (menus, barre d'outils, plan, panneau latéral).
 
 **Édition** — styles de titres, polices, tailles, couleurs, surlignage, listes, listes de tâches, tableaux
 (ajout/suppression de lignes et colonnes), images, liens, sauts de page, recherche et remplacement,
-plan du document, correcteur orthographique (français et anglais ; ses dictionnaires peuvent se télécharger
-à la première utilisation, ce qui demande alors une connexion Internet).
+plan du document, **correcteur orthographique intégré** (français et anglais, hors connexion, identique dans les deux versions).
 Deux affichages : **Pages** (format Lettre, repères de saut de page) et **Sans pages** (surface continue).
+
+**Correction orthographique façon Google Docs** — les mots inconnus sont soulignés d'un trait ondulé rouge. Un clic sur un mot
+ouvre une pastille : la **suggestion** (un clic la remplace), **Ignorer**, **commentaire**, et un menu `⋮` (autres suggestions,
+« Toujours remplacer par … », « Ajouter au dictionnaire personnel », « Vérification de l'orthographe »).
+`Ctrl+Alt+X` (ou Outils → *Vérification de l'orthographe…*) ouvre une petite carte qui parcourt les erreurs une à une
+(« 1 sur 3 », suggestions, Ignorer, Ajouter au dictionnaire) ; sans erreur, elle affiche « Aucune suggestion à examiner. ».
+Le moteur est un lecteur de dictionnaires Hunspell écrit en JavaScript (affixes, composés, suggestions par distance d'édition),
+validé contre `libhunspell` (99,9 % d'accord). Dictionnaires : français (Grammalecte, MPL 2.0) et anglais (SCOWL),
+dans `dictionaries/`, convertis en fichiers `renderer/dict-*.js` par `node tools/make-dicts.js`.
+
+**Curseurs** — Plume dessine ses propres curseurs (style macOS : flèche, main, texte, roue d'attente multicolore, déplacement,
+redimensionnements horizontal, vertical et diagonaux), identiques dans l'application Windows et dans le navigateur.
+**Paramètres → Apparence → Curseur** : activer/désactiver, **taille** (20 à 64 px) et **couleur** (noir, blanc, couleur d'accent, bleu, rouge,
+orange, vert, violet, rose, graphite), avec aperçu en direct des neuf curseurs.
 
 **Menu `/`** — tapez `/` dans une ligne vide pour insérer rapidement : titres, listes, tableau, ligne de séparation, saut de page,
 **encadrés** colorés (information, astuce, attention, danger), **sommaire automatique** (il se met à jour tout seul et
@@ -144,7 +156,7 @@ quand on change d'onglet (le contenu, lui, est conservé intact).
 `Ctrl+N` / `Ctrl+T` Nouveau · `Ctrl+O` Ouvrir · `Ctrl+S` Enregistrer · `Ctrl+Maj+S` Enregistrer sous · `Ctrl+P` Imprimer ·
 `Ctrl+W` Fermer l'onglet · `Ctrl+Tab` Onglet suivant · `Alt+Début` Accueil · `Ctrl+F` / `Ctrl+H` Rechercher / remplacer ·
 `Ctrl+K` Lien · `Ctrl+\` Effacer la mise en forme · `Ctrl+Alt+M` Commenter · `@` Insérer · `/` Blocs ·
-`Ctrl+Maj+P` Palette de commandes · `Ctrl+Maj+C` Mode concentration ·
+`Ctrl+Maj+P` Palette de commandes · `Ctrl+Maj+C` Mode concentration · `Ctrl+Alt+X` Vérification de l'orthographe ·
 `Ctrl++` / `Ctrl+-` / `Ctrl+0` Zoom de la page · `Ctrl+Maj+F` Mode compact · `F11` Plein écran · `Ctrl+/` Liste des raccourcis
 
 ## Organisation du code
@@ -166,6 +178,9 @@ renderer/      l'interface (HTML/CSS/JavaScript sans dépendance)
   emoji.js     sélecteur d'émojis (recherche, catégories)
   selbar.js    barre flottante de mise en forme
   ctxmenu.js   menu contextuel (orthographe, tableaux)
+  hunspell.js  moteur de correction compatible Hunspell · dict-fr.js / dict-en.js : dictionnaires intégrés
+  spell.js     soulignement ondulé, pastille de correction, carte « Vérification »
+  cursors.js   curseurs dessinés (taille et couleur réglables)
   focus.js     mode concentration
 web/           version navigateur : native-web.js (remplace le pont Electron) et build.js (assemble Plume.html)
   review.js    commentaires et mode Suggestion
