@@ -309,6 +309,83 @@
     setSpellLangs: async () => true,
     editCmd,
     spell: { check: () => ({ bad: false, suggestions: [] }), add: async () => true },   // le correcteur du navigateur souligne les fautes
+    // IA : appel direct à l'API Claude avec la clé de l'utilisateur. Dans un navigateur, la clé est conservée dans le stockage local
+    // de cette page (pas de coffre sécurisé) ; l'application Windows la protège avec le coffre du système.
+    ai: (() => {
+      const KEY = 'plume.ai.key';
+      const MODELS = ['claude-sonnet-5-5', 'claude-haiku-5-5', 'claude-opus-5-5'];
+      const runs = new Map();
+      const read = () => { try { return localStorage.getItem(KEY) || ''; } catch (_) { return ''; } };
+      const errText = (status, body) => {
+        let msg = '';
+        try { const j = JSON.parse(body); msg = j && j.error && j.error.message ? j.error.message : ''; } catch (_) { /* pas du JSON */ }
+        if (status === 401) return 'La clé API a été refusée (401). Vérifiez-la dans Paramètres → Intelligence artificielle.';
+        if (status === 403) return 'Accès refusé par le service (403). ' + msg;
+        if (status === 429) return 'Trop de requêtes ou limite atteinte (429). Réessayez dans un instant.';
+        if (status === 529 || status === 503) return 'Le service est momentanément surchargé. Réessayez dans un instant.';
+        if (/credit balance/i.test(msg)) return 'Le solde de crédits de votre compte API est insuffisant.';
+        return 'Erreur du service (' + status + ')' + (msg ? ' : ' + msg : '.');
+      };
+      return {
+        status: async () => ({ hasKey: !!read(), secure: false, where: 'browser' }),
+        setKey: async (key) => {
+          key = String(key || '').trim();
+          if (!/^sk-ant-[A-Za-z0-9_-]{20,}$/.test(key)) return { error: 'Cette clé ne ressemble pas à une clé API Claude (elle commence par « sk-ant- »).' };
+          try { localStorage.setItem(KEY, key); } catch (_) { return { error: 'Ce navigateur refuse de conserver la clé (stockage local bloqué).' }; }
+          return { ok: true };
+        },
+        clearKey: async () => { try { localStorage.removeItem(KEY); } catch (_) { /* ignoré */ } return { ok: true }; },
+        cancel: async (id) => { const c = runs.get(String(id)); if (c) c.abort(); return true; },
+        complete: async (o, onChunk) => {
+          const key = read();
+          if (!key) return { error: 'Aucune clé API enregistrée. Ajoutez-la dans Paramètres → Intelligence artificielle.' };
+          const id = String((o && o.id) || Math.random().toString(36).slice(2));
+          const model = MODELS.includes(o && o.model) ? o.model : MODELS[0];
+          const messages = (Array.isArray(o && o.messages) ? o.messages : []).slice(-24)
+            .map((m) => ({ role: m && m.role === 'assistant' ? 'assistant' : 'user', content: String((m && m.content) || '').slice(0, 240000) })).filter((m) => m.content);
+          if (!messages.length) return { error: 'Requête vide.' };
+          const ctl = new AbortController();
+          runs.set(id, ctl);
+          const timer = setTimeout(() => ctl.abort(), 180000);
+          let full = '';
+          try {
+            const res = await fetch('https://api.anthropic.com/v1/messages', {
+              method: 'POST',
+              signal: ctl.signal,
+              headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+              body: JSON.stringify({ model, max_tokens: Math.max(16, Math.min(8192, (o && o.maxTokens) | 0 || 4096)), system: String((o && o.system) || '').slice(0, 60000), messages, stream: true }),
+            });
+            if (!res.ok) return { error: errText(res.status, await res.text()) };
+            const reader = res.body.getReader();
+            const dec = new TextDecoder();
+            let buf = '';
+            for (;;) {
+              const { value, done } = await reader.read();
+              if (done) break;
+              buf += dec.decode(value, { stream: true });
+              let i;
+              while ((i = buf.indexOf('\n')) >= 0) {
+                const line = buf.slice(0, i).trim();
+                buf = buf.slice(i + 1);
+                if (!line.startsWith('data:')) continue;
+                let ev;
+                try { ev = JSON.parse(line.slice(5)); } catch (_) { continue; }
+                if (ev.type === 'content_block_delta' && ev.delta && ev.delta.type === 'text_delta' && ev.delta.text) {
+                  full += ev.delta.text;
+                  if (typeof onChunk === 'function') onChunk(ev.delta.text);
+                } else if (ev.type === 'error') {
+                  return { error: errText(ev.error && ev.error.type === 'overloaded_error' ? 529 : 500, JSON.stringify(ev)) };
+                }
+              }
+            }
+            return { ok: true, text: full };
+          } catch (err) {
+            if (ctl.signal.aborted) return { cancelled: true, text: full };
+            return { error: 'Impossible de joindre le service (' + (err && err.message ? err.message : err) + '). Vérifiez votre connexion Internet.' };
+          } finally { clearTimeout(timer); runs.delete(id); }
+        },
+      };
+    })(),
     recents: {
       list: async () => (await getRecents()).map((r) => Object.assign({ missing: false }, r)),
       add: async (e) => {

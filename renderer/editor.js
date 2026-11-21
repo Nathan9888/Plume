@@ -783,6 +783,11 @@
       { group: 'Insérer', icon: '🔗', label: 'Lien', hint: '', run: insertLink, kw: 'url hyperlien' },
       { group: 'Insérer', icon: '📅', label: "Date d'aujourd'hui", hint: '', run: () => insertDate(true), kw: 'jour' },
       { group: 'Insérer', icon: '👤', label: 'Personne', hint: 'Carte de contact', run: insertPerson, kw: 'mention contact' },
+      { group: 'IA', icon: '✦', label: 'Demander à l’IA…', hint: 'Ctrl+Alt+J', run: () => P.ai && P.ai.ui.ask(), kw: 'ia ai intelligence artificielle ecrire rediger generer assistant' },
+      { group: 'IA', icon: '✦', label: 'Continuer l’écriture', hint: 'IA', run: () => P.ai && P.ai.ui.start('continue', {}), kw: 'ia ai suite poursuivre' },
+      { group: 'IA', icon: '✦', label: 'Idées pour continuer', hint: 'IA', run: () => P.ai && P.ai.ui.start('ideas', {}), kw: 'ia ai idees brainstorm pistes' },
+      { group: 'IA', icon: '✦', label: 'Générer un plan', hint: 'IA', run: () => P.ai && P.ai.ui.start('outline', {}), kw: 'ia ai plan structure' },
+      { group: 'IA', icon: '✦', label: 'Résumer le document', hint: 'IA', run: () => P.ai && P.ai.ui.start('summarize', {}), kw: 'ia ai resume' },
       ...BLOCK_ITEMS.map((b) => Object.assign({}, b, { group: 'Blocs' })),
     ];
   }

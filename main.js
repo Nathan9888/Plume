@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, dialog, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain, shell, safeStorage, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -348,6 +348,100 @@ ipcMain.handle('edit:cmd', guard((_e, cmd) => {
   if (!win || !['cut', 'copy', 'paste', 'selectAll'].includes(cmd)) return false;
   win.webContents[cmd]();
   return true;
+}));
+
+// ---------- Intelligence artificielle (API Claude, avec la clé personnelle de l'utilisateur) ----------
+// La clé est chiffrée par le coffre de Windows (safeStorage) et ne revient jamais à l'interface. Les requêtes partent d'ici :
+// la page n'a pas le droit de se connecter à Internet (CSP). Seuls le texte et la consigne envoyés par l'interface sont transmis :
+// ni le nom de l'utilisateur, ni aucune autre donnée.
+const AI_MODELS = ['claude-sonnet-5-5', 'claude-haiku-5-5', 'claude-opus-5-5'];
+const AI_URL = 'https://api.anthropic.com/v1/messages';
+const aiFile = () => path.join(app.getPath('userData'), 'ai.json');
+const aiRuns = new Map();
+
+function aiKey() {
+  try {
+    const o = JSON.parse(fs.readFileSync(aiFile(), 'utf8'));
+    return o && o.key ? safeStorage.decryptString(Buffer.from(o.key, 'base64')) : null;
+  } catch (_) { return null; }
+}
+
+function aiErrorText(status, body) {
+  let msg = '';
+  try { const j = JSON.parse(body); msg = j && j.error && j.error.message ? j.error.message : ''; } catch (_) { /* pas du JSON */ }
+  if (status === 401) return 'La clé API a été refusée (401). Vérifiez-la dans Paramètres → Intelligence artificielle.';
+  if (status === 403) return 'Accès refusé par le service (403). ' + msg;
+  if (status === 429) return 'Trop de requêtes ou limite atteinte (429). Réessayez dans un instant.';
+  if (status === 529 || status === 503) return 'Le service est momentanément surchargé. Réessayez dans un instant.';
+  if (/credit balance/i.test(msg)) return 'Le solde de crédits de votre compte API est insuffisant.';
+  return 'Erreur du service (' + status + ')' + (msg ? ' : ' + msg : '.');
+}
+
+ipcMain.handle('ai:status', guard(() => ({ hasKey: !!aiKey(), secure: safeStorage.isEncryptionAvailable(), where: 'app' })));
+
+ipcMain.handle('ai:setKey', guard((_e, key) => {
+  key = String(key || '').trim();
+  if (!/^sk-ant-[A-Za-z0-9_-]{20,}$/.test(key)) return { error: 'Cette clé ne ressemble pas à une clé API Claude (elle commence par « sk-ant- »).' };
+  if (!safeStorage.isEncryptionAvailable()) return { error: 'Le coffre sécurisé de Windows n’est pas disponible : la clé ne peut pas être enregistrée de façon sûre.' };
+  writeAtomic(aiFile(), JSON.stringify({ key: safeStorage.encryptString(key).toString('base64') }));
+  return { ok: true };
+}));
+
+ipcMain.handle('ai:clearKey', guard(() => { try { fs.unlinkSync(aiFile()); } catch (_) { /* absente */ } return { ok: true }; }));
+
+ipcMain.handle('ai:cancel', guard((_e, id) => { const c = aiRuns.get(String(id)); if (c) c.abort(); return true; }));
+
+ipcMain.handle('ai:complete', guard(async (e, o) => {
+  if (!win || e.sender !== win.webContents) return { error: 'Appel refusé.' };
+  const key = aiKey();
+  if (!key) return { error: 'Aucune clé API enregistrée. Ajoutez-la dans Paramètres → Intelligence artificielle.' };
+  const id = String(o && o.id || '');
+  const model = AI_MODELS.includes(o && o.model) ? o.model : AI_MODELS[0];
+  const messages = (Array.isArray(o && o.messages) ? o.messages : []).slice(-24)
+    .map((m) => ({ role: m && m.role === 'assistant' ? 'assistant' : 'user', content: String(m && m.content || '').slice(0, 240000) })).filter((m) => m.content);
+  if (!messages.length) return { error: 'Requête vide.' };
+  const ctl = new AbortController();
+  aiRuns.set(id, ctl);
+  const timer = setTimeout(() => ctl.abort(), 180000);
+  let full = '';
+  try {
+    const res = await net.fetch(AI_URL, {
+      method: 'POST',
+      signal: ctl.signal,
+      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model, max_tokens: Math.max(16, Math.min(8192, o.maxTokens | 0 || 4096)), system: String(o.system || '').slice(0, 60000), messages, stream: true }),
+    });
+    if (!res.ok) return { error: aiErrorText(res.status, await res.text()) };
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, i).trim();
+        buf = buf.slice(i + 1);
+        if (!line.startsWith('data:')) continue;
+        let ev;
+        try { ev = JSON.parse(line.slice(5)); } catch (_) { continue; }
+        if (ev.type === 'content_block_delta' && ev.delta && ev.delta.type === 'text_delta' && ev.delta.text) {
+          full += ev.delta.text;
+          if (!e.sender.isDestroyed()) e.sender.send('ai:chunk', { id, text: ev.delta.text });
+        } else if (ev.type === 'error') {
+          return { error: aiErrorText(ev.error && ev.error.type === 'overloaded_error' ? 529 : 500, JSON.stringify(ev)) };
+        }
+      }
+    }
+    return { ok: true, text: full };
+  } catch (err) {
+    if (ctl.signal.aborted) return { cancelled: true, text: full };
+    return { error: 'Impossible de joindre le service (' + (err && err.message ? err.message : err) + '). Vérifiez votre connexion Internet.' };
+  } finally {
+    clearTimeout(timer);
+    aiRuns.delete(id);
+  }
 }));
 
 ipcMain.handle('recents:list', guard(() => {

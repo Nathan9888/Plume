@@ -228,7 +228,7 @@ ins.sg-ins { color: var(--ok); text-decoration: underline; background: rgba(24, 
 del.sg-del { color: var(--danger); text-decoration: line-through; background: rgba(197, 34, 31, .07); }
 
 /* ---------- Panneau latéral ---------- */
-#side { width: 360px; flex: none; display: flex; flex-direction: column; background: var(--panel); border-left: .5px solid var(--sep); }
+#side { width: 384px; flex: none; display: flex; flex-direction: column; background: var(--panel); border-left: .5px solid var(--sep); }
 #sidetabs { display: flex; align-items: center; gap: 6px; padding: 10px 10px 10px 12px; border-bottom: .5px solid var(--sep); }
 #sidebody { flex: 1; overflow: auto; padding: 12px 12px 24px; }
 .panel-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }

@@ -31,6 +31,19 @@ contextBridge.exposeInMainWorld('native', {
     },
     add: (word) => call('spell:add', String(word || '')),
   },
+  // IA : la clé reste dans le processus principal ; l'interface n'en reçoit jamais le contenu.
+  ai: {
+    status: () => call('ai:status'),
+    setKey: (key) => call('ai:setKey', String(key || '')),
+    clearKey: () => call('ai:clearKey'),
+    cancel: (id) => call('ai:cancel', String(id || '')),
+    complete: async (opts, onChunk) => {
+      const id = String((opts && opts.id) || Math.random().toString(36).slice(2));
+      const on = (_e, m) => { if (m && m.id === id && typeof onChunk === 'function') onChunk(String(m.text || '')); };
+      ipcRenderer.on('ai:chunk', on);
+      try { return await call('ai:complete', Object.assign({}, opts, { id })); } finally { ipcRenderer.removeListener('ai:chunk', on); }
+    },
+  },
   recents: {
     list: () => call('recents:list'),
     add: (entry) => call('recents:add', entry),

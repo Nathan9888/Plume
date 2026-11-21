@@ -85,8 +85,11 @@
   ];
 
   /** Analyse le texte affiché du document. Retourne [{id, label, count, samples}]. */
-  P.scanSensitive = function () {
-    const text = ed.innerText || '';
+  P.scanSensitive = function () { return P.scanText(ed.innerText || ''); };
+
+  /** Même analyse sur n'importe quel texte (par exemple avant un envoi à l'IA). */
+  P.scanText = function (text) {
+    text = String(text || '');
     const found = new Map();
     for (const d of DETECTORS) {
       d.re.lastIndex = 0;

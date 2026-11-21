@@ -26,6 +26,10 @@
     <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4.50 9.50 9 5M4.50 9.50H14a5.50 5.50 0 0 1 0 11h-3"/></symbol>
     <symbol id="i-redo" viewBox="0 0 24 24"><path d="M15 14l4.50-4.50L15 5M19.50 9.50H10a5.50 5.50 0 0 0 0 11h3"/></symbol>
     <symbol id="i-print" viewBox="0 0 24 24"><path d="M7 8.50V4h10v4.50M7 17H5.50A1.50 1.50 0 0 1 4 15.50v-5A2 2 0 0 1 6 8.50h12a2 2 0 0 1 2 2v5a1.50 1.50 0 0 1-1.50 1.50H17M7 14h10v6H7z"/></symbol>
+    <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M10.5 4.5l1.7 4.6a2 2 0 0 0 1.2 1.2l4.6 1.7-4.6 1.7a2 2 0 0 0-1.2 1.2l-1.7 4.6-1.7-4.6a2 2 0 0 0-1.2-1.2L3 12l4.6-1.7a2 2 0 0 0 1.2-1.2z"/><path d="M18.5 3.5v3M17 5h3"/><path d="M19 17.5v2.5M17.75 18.75h2.5"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19 12a7 7 0 1 1-2.2-5.1"/><path d="M19 4.5v4h-4"/></symbol>
     <symbol id="i-ignore" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M9 9l6 6M15 9l-6 6"/></symbol>
     <symbol id="i-dots-v" viewBox="0 0 24 24"><circle cx="12" cy="5.5" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="18.5" r="1.4" fill="currentColor" stroke="none"/></symbol>
     <symbol id="i-spell" viewBox="0 0 24 24"><path d="M3.50 16.50 7.50 6l4 10.50M5 12.80h5M13.50 17l3 3 5-6"/></symbol>
@@ -139,6 +143,7 @@
           </div>
           <div class="head-right">
             <button type="button" id="btn-expand" class="icon-btn" title="Réafficher les menus et la barre d'outils (Ctrl+Maj+F)" aria-label="Réafficher les menus"><svg class="ic"><use href="#i-chev-down"/></svg></button>
+            <button type="button" id="btn-ai" class="icon-btn" title="Assistant IA" aria-label="Assistant IA"><svg class="ic"><use href="#i-sparkle"/></svg></button>
             <button type="button" id="btn-history" class="icon-btn" title="Historique des versions" aria-label="Historique des versions"><svg class="ic"><use href="#i-history"/></svg></button>
             <button type="button" id="btn-comments" class="icon-btn" title="Commentaires" aria-label="Commentaires"><svg class="ic"><use href="#i-comment"/></svg></button>
             <button type="button" id="btn-save" class="pill-primary" title="Enregistrer (Ctrl+S)"><svg class="ic sm"><use href="#i-save"/></svg><span>Enregistrer</span></button>
@@ -255,6 +260,7 @@
               <button type="button" data-tab="suggestions">Suggestions</button>
               <button type="button" data-tab="versions">Versions</button>
               <button type="button" data-tab="variables">Variables</button>
+              <button type="button" data-tab="assistant">IA</button>
             </div>
             <button type="button" class="icon-btn" id="side-close" title="Fermer le panneau" aria-label="Fermer le panneau"><svg class="ic"><use href="#i-close"/></svg></button>
           </nav>
@@ -304,6 +310,8 @@
   <script src="dict-fr.js"></script>
   <script src="dict-en.js"></script>
   <script src="spell.js"></script>
+  <script src="ai.js"></script>
+  <script src="ai-ui.js"></script>
 <script src="home.js"></script>
 <script src="start.js"></script>
 </body>

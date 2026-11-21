@@ -260,6 +260,8 @@
       { label: 'Statistiques du document…', action: stats },
       { label: 'Rechercher et remplacer…', hint: 'Ctrl+H', icon: 'i-search', action: () => P.openFind() },
       '-',
+      { label: 'Assistant IA', icon: 'i-sparkle', items: () => P.ai.ui.docItems() },
+      '-',
       { label: 'Vérifier les données sensibles', icon: 'i-shield', action: act('dlp') },
       { label: 'Réviser les suggestions', icon: 'i-suggest', action: () => P.showPanel('suggestions') },
       '-',

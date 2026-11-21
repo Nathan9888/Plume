@@ -217,7 +217,8 @@
       sugs[0] ? { label: 'Toujours remplacer par « ' + sugs[0] + ' »', action: () => alwaysReplace(it, sugs[0]) } : { label: 'Toujours remplacer par…', disabled: true },
       { label: 'Ajouter au dictionnaire personnel', action: () => addToDictionary(it) },
       '-',
-      { label: 'Vérification de l’orthographe', hint: 'Ctrl+Alt+X', action: () => { hidePill(); openCard(it); } });
+      { label: 'Vérification de l’orthographe', hint: 'Ctrl+Alt+X', action: () => { hidePill(); openCard(it); } },
+      { label: 'Corriger la phrase avec l’IA', icon: 'i-sparkle', action: () => { hidePill(); const r = P.ai && P.ai.sentenceAround(it.node, it.start); if (r) P.ai.ui.start('fix', { range: r }); else P.toast('Phrase introuvable.'); } });
     P.menu.open(list, { x: rect.left, y: rect.bottom + 6 });
   }
 
@@ -240,7 +241,10 @@
       cardBtn('i-chev-down', 'Faute précédente', () => go(-1), 'up'),
       cardBtn('i-chev-down', 'Faute suivante', () => go(1)),
       cardBtn('i-close', 'Fermer (Échap)', closeCard)));
-    if (!it) { card.append(h('div', { class: 'sc-empty', text: 'Aucune suggestion à examiner.' })); }
+    if (!it) {
+      card.append(h('div', { class: 'sc-empty', text: 'Aucune suggestion à examiner.' }));
+      card.append(h('button', { type: 'button', class: 'sc-ai', onclick: () => { closeCard(); P.ai.ui.review(); } }, P.svgIcon('i-sparkle', 'sm'), 'Relecture approfondie avec l’IA'));
+    }
     else {
       const sugs = suggest(it.word);
       card.append(h('div', { class: 'sc-body' },

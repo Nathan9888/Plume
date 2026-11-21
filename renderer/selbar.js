@@ -8,6 +8,8 @@
   if (!bar) return;
 
   const BTNS = [
+    { act: 'ai', ai: true, icon: 'i-sparkle', title: 'Assistant IA : améliorer, corriger, reformuler…' },
+    '|ai',
     { cmd: 'bold', icon: 'i-bold', title: 'Gras (Ctrl+B)', fmt: true },
     { cmd: 'italic', icon: 'i-italic', title: 'Italique (Ctrl+I)', fmt: true },
     { cmd: 'underline', icon: 'i-underline', title: 'Souligné (Ctrl+U)', fmt: true },
@@ -19,7 +21,7 @@
 
   const els = [];
   BTNS.forEach((b) => {
-    if (b === '|') { const s = document.createElement('span'); s.className = 'sb-sep'; s.setAttribute('role', 'separator'); bar.append(s); els.push({ sep: true, el: s }); return; }
+    if (b === '|' || b === '|ai') { const s = document.createElement('span'); s.className = 'sb-sep'; s.setAttribute('role', 'separator'); bar.append(s); els.push({ sep: true, ai: b === '|ai', el: s }); return; }
     const el = document.createElement('button');
     el.type = 'button';
     el.className = 'sb-btn';
@@ -58,7 +60,8 @@
     const top = (document.getElementById('chrome') || { getBoundingClientRect: () => ({ bottom: 0 }) }).getBoundingClientRect().bottom;
     if (a.bottom < top || a.top > innerHeight) { hide(); return; }
     const suggest = state.mode === 'suggest';
-    els.forEach(({ b, el }) => { if (b && b.fmt) el.hidden = suggest; if (!b) el.hidden = suggest; });
+    const aiOn = !!P.settings.get('aiSelbar');
+    els.forEach(({ b, el, ai }) => { if (b && b.fmt) el.hidden = suggest; if (!b) el.hidden = ai ? !aiOn : suggest; if (b && b.ai) el.hidden = !aiOn; });
     bar.hidden = false;
     live = r.cloneRange();
     syncState();
@@ -87,6 +90,13 @@
     if (b.cmd) { P.exec(b.cmd, null, false); syncState(); return; }
     if (b.act === 'link') { hide(); P.actions.link(); return; }
     if (b.act === 'comment') { hide(); P.addComment(); return; }
+    if (b.act === 'ai' && range) {
+      const a = P.rangeAnchor(range);
+      hide();
+      P.pending.set(range);
+      P.menu.open(P.ai.ui.selectionItems(range, true), { x: Math.max(8, a.left - 10), y: a.bottom + 10, onClose: () => P.pending.clear() });
+      return;
+    }
     if (b.act === 'emoji' && range) {
       const a = P.rangeAnchor(range);
       hide();

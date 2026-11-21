@@ -88,10 +88,13 @@
     }
 
     const fmt = (cmd) => () => P.exec(cmd, null, false);
+    const aiSel = window.getSelection();
+    const aiRange = aiSel.rangeCount && P.editor.contains(aiSel.getRangeAt(0).commonAncestorContainer) ? aiSel.getRangeAt(0).cloneRange() : null;
     list.push(
       '-',
       { label: 'Insérer un lien', hint: 'Ctrl+K', icon: 'i-link', disabled: ro, action: act('link') },
       { label: 'Commentaire', hint: 'Ctrl+Alt+M', icon: 'i-comment', disabled: ro || !hasSel, action: () => { toEd(); P.addComment(); } },
+      { label: 'Assistant IA', icon: 'i-sparkle', disabled: ro, items: () => P.ai.ui.selectionItems(aiRange, hasSel) },
       '-',
       { label: 'Afficher d’autres actions', items: [
         { label: 'Mise en forme', items: [

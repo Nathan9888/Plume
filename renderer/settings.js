@@ -14,7 +14,7 @@
     ]],
     ['Mise en forme', [
       ['Gras · Italique · Souligné', 'Ctrl+B · Ctrl+I · Ctrl+U'], ['Insérer un lien', 'Ctrl+K'], ['Effacer la mise en forme', 'Ctrl+\\'],
-      ['Annuler · Rétablir', 'Ctrl+Z · Ctrl+Y'], ['Commenter la sélection', 'Ctrl+Alt+M'], ['Vérification de l’orthographe', 'Ctrl+Alt+X'], ['Puces intelligentes, champs et blocs', '@'],
+      ['Annuler · Rétablir', 'Ctrl+Z · Ctrl+Y'], ['Commenter la sélection', 'Ctrl+Alt+M'], ['Vérification de l’orthographe', 'Ctrl+Alt+X'], ['Demander à l’IA', 'Ctrl+Alt+J'], ['Puces intelligentes, champs et blocs', '@'],
       ['Titres, listes, encadrés, tableau… (début d’une ligne vide)', '/'], ['Coller sans la mise en forme', 'Ctrl+Maj+V'], ['Menu contextuel', 'Clic droit · Maj+F10'],
     ]],
     ['Affichage', [
@@ -39,6 +39,15 @@
       desc: 'Affiche la liste des titres à gauche du document.' },
     { key: 'selBar', section: 'edit', grp: 'Édition', type: 'toggle', def: true, label: 'Pastille d’actions sous la sélection',
       desc: 'Mise en forme rapide, commentaire et émoji juste sous le texte sélectionné.' },
+    { key: 'aiOn', section: 'ai', hidden: true, type: 'toggle', def: false, label: 'Assistant IA' },
+    { key: 'aiModel', section: 'ai', grp: 'Modèle', type: 'select', def: 'claude-sonnet-5-5', label: 'Modèle de Claude',
+      options: [['claude-sonnet-5-5', 'Sonnet 5.5 : équilibré (recommandé)'], ['claude-haiku-5-5', 'Haiku 5.5 : rapide et économique'], ['claude-opus-5-5', 'Opus 5.5 : le plus puissant']] },
+    { key: 'aiDlp', section: 'ai', grp: 'Confidentialité', type: 'toggle', def: true, label: 'Vérifier les données sensibles avant l’envoi',
+      desc: 'Prévient si le texte contient un numéro de carte, un NAS, un IBAN… et demande confirmation avant de l’envoyer.' },
+    { key: 'aiNoEncrypted', section: 'ai', grp: 'Confidentialité', type: 'toggle', def: true, label: 'Ne jamais envoyer un document chiffré',
+      desc: 'Bloque l’IA dans les documents protégés par un mot de passe.' },
+    { key: 'aiSelbar', section: 'ai', grp: 'Où l’IA apparaît', type: 'toggle', def: true, label: 'Bouton ✦ sous la sélection',
+      desc: 'Ajoute l’IA à la pastille d’actions affichée sous le texte sélectionné.' },
     { key: 'cursorOn', section: 'appearance', grp: 'Curseur', type: 'toggle', def: true, label: 'Curseur personnalisé',
       desc: 'Flèche, main, curseur de texte, roue d’attente… dessinés dans le style macOS, à l’intérieur de Plume.' },
     { key: 'cursorSize', section: 'appearance', grp: 'Curseur', type: 'stepper', def: 32, label: 'Taille du curseur',
@@ -100,6 +109,7 @@
   const APPLY = {
     theme() { root.dataset.theme = resolvedTheme(); syncOverlay(); },
     accent() { root.dataset.accent = S.accent; if (P.cursors && S.cursorColor === 'accent') P.cursors.refresh(); },
+    aiSelbar() { if (P.selbar) P.selbar.refresh(); },
     cursorOn() { if (P.cursors) P.cursors.refresh(); },
     cursorSize() { if (P.cursors) P.cursors.refresh(); },
     cursorColor() { if (P.cursors) P.cursors.refresh(); },
@@ -281,11 +291,79 @@
     P.paintAvatars();
   };
 
+  /* ---------- Section « Intelligence artificielle » : activation, clé API, essai de connexion ---------- */
+  function aiTop(body) {
+    const nt = nat();
+    body.append(h('p', { class: 'lead', text: 'Plume peut vous aider à écrire : corriger, reformuler, résumer, proposer des idées, répondre à vos questions sur le document. Cela passe par l’API de Claude (Anthropic) avec votre propre clé : Plume n’a ni abonnement ni serveur et ne garde aucun échange.' }));
+    body.append(h('div', { class: 'ai-priv' }, svgIcon('i-shield'), h('div', {},
+      h('b', { text: 'Ce qui est envoyé' }),
+      h('p', { text: 'Uniquement le texte concerné par l’action que vous lancez (la sélection ; le document entier pour le panneau Assistant et la relecture) et votre consigne, à api.anthropic.com. Jamais votre nom ni aucune autre donnée. Rien ne part tant que vous ne lancez pas une action d’IA.' }))));
+
+    const sw = h('button', { type: 'button', class: 'switch', role: 'switch', 'aria-label': 'Activer l’assistant IA' });
+    bind(sw, 'aiOn', () => sw.setAttribute('aria-checked', String(!!S.aiOn)));
+    sw.addEventListener('click', async () => {
+      if (S.aiOn) { set('aiOn', false); return; }
+      const r = await P.modal({ title: 'Activer l’assistant IA ?', message: 'Quand vous lancerez une action d’IA (améliorer, corriger, résumer, Assistant…), le texte concerné et votre consigne seront envoyés à l’API de Claude (api.anthropic.com) avec votre clé. Votre nom n’est jamais envoyé. Vous pouvez la désactiver à tout moment.', ok: 'Activer' });
+      if (r) set('aiOn', true);
+    });
+
+    const state = h('span', { class: 'ai-keystate', role: 'status' });
+    const input = h('input', { type: 'password', placeholder: 'sk-ant-…', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Clé API Claude' });
+    const del = h('button', { type: 'button', class: 'chipbtn', text: 'Supprimer', hidden: true });
+    const save = h('button', { type: 'button', class: 'chipbtn', text: 'Enregistrer' });
+    const test = h('button', { type: 'button', class: 'chipbtn', text: 'Tester la connexion' });
+    const note = h('div', { class: 'ai-keynote' });
+    const refresh = async () => {
+      let st = null;
+      try { st = nt && nt.ai ? await nt.ai.status() : null; } catch (_) { st = null; }
+      if (!st) { state.textContent = 'IA indisponible ici.'; return; }
+      state.textContent = st.hasKey ? 'Clé enregistrée' + (st.where === 'app' ? ' (chiffrée par Windows)' : ' (dans ce navigateur)') : 'Aucune clé enregistrée';
+      state.dataset.ok = st.hasKey ? '1' : '0';
+      del.hidden = !st.hasKey;
+      test.disabled = !st.hasKey;
+      note.textContent = st.where === 'browser' ? 'Dans la version navigateur, la clé est conservée dans le stockage de ce navigateur, sans coffre sécurisé : l’application Windows la protège mieux.' : '';
+      note.hidden = !note.textContent;
+    };
+    save.addEventListener('click', async () => {
+      const r = await nt.ai.setKey(input.value);
+      if (r && r.error) { P.toast(r.error); return; }
+      input.value = '';
+      P.toast('Clé enregistrée.');
+      refresh();
+    });
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save.click(); } });
+    del.addEventListener('click', async () => {
+      if (!(await P.confirm('Supprimer la clé API ?', 'La clé sera effacée de cet ordinateur. L’IA ne fonctionnera plus tant que vous n’en saisirez pas une autre.', 'Supprimer'))) return;
+      await nt.ai.clearKey();
+      P.toast('Clé supprimée.');
+      refresh();
+    });
+    test.addEventListener('click', async () => {
+      test.disabled = true;
+      const old = test.textContent;
+      test.textContent = 'Test en cours…';
+      const r = await P.ai.complete({ messages: [{ role: 'user', content: 'Réponds uniquement par le mot : OK' }], maxTokens: 16 }).promise;
+      test.textContent = old;
+      test.disabled = false;
+      P.toast(r.error ? r.error : 'Connexion réussie : la clé fonctionne.');
+    });
+
+    body.append(h('div', { class: 'set-cap', text: 'Activation' }), h('div', { class: 'set-group' },
+      h('div', { class: 'set-row' }, h('div', { class: 'lbl' }, 'Activer l’assistant IA', h('span', { class: 'desc', text: 'Désactivée par défaut. Active les actions d’IA dans tout l’éditeur.' })), sw),
+      h('div', { class: 'set-row stack' }, h('div', { class: 'lbl' }, 'Clé API Claude', h('span', { class: 'desc', text: 'Créez-la dans la console Anthropic (compte et crédits à vous). Elle n’est jamais affichée ni envoyée ailleurs qu’à Anthropic.' })),
+        h('div', { class: 'ai-key' }, input, save, del),
+        h('div', { class: 'ai-keyrow' }, state, test,
+          h('button', { type: 'button', class: 'chipbtn', text: 'Obtenir une clé', onclick: () => { try { nt.openExternal('url', 'https://console.anthropic.com/settings/keys'); } catch (_) { /* ignoré */ } } })),
+        note)));
+    refresh();
+  }
+
   /* ---------- Fenêtre « Paramètres » ---------- */
   const SECTIONS = [
     ['account', 'Compte', 'i-person'],
     ['appearance', 'Apparence', 'i-sun'],
     ['edit', 'Édition', 'i-edit'],
+    ['ai', 'Intelligence artificielle', 'i-sparkle'],
     ['files', 'Fichiers et données', 'i-folder'],
     ['shortcuts', 'Raccourcis clavier', 'i-keyboard'],
     ['about', 'À propos', 'i-info'],
@@ -323,8 +401,9 @@
         h('div', {}, h('b', { text: 'Plume ' + (info.version || '') }),
           h('div', { class: 'muted', text: 'Traitement de texte local, simple et élégant.' }),
           h('div', { class: 'muted', text: [info.electron && 'Electron ' + info.electron, info.chrome && 'Chromium ' + info.chrome].filter(Boolean).join(' · ') }))));
-      body.append(h('p', { class: 'lead', text: 'Vos documents restent sur votre ordinateur (fichiers .plume). Aucune donnée n’est envoyée sur Internet par Plume.' }));
+      body.append(h('p', { class: 'lead', text: 'Vos documents restent sur votre ordinateur (fichiers .plume). Plume n’envoie rien sur Internet, sauf si vous activez l’assistant IA (Paramètres → Intelligence artificielle) : seul le texte que vous soumettez à l’IA part alors vers l’API de Claude, avec votre propre clé.' }));
     } else {
+      if (id === 'ai') aiTop(body);
       const groups = [];
       SCHEMA.filter((d) => !d.hidden && d.section === id).forEach((d) => {
         let g = groups.find((x) => x.name === (d.grp || ''));
