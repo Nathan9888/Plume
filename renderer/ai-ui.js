@@ -277,42 +277,133 @@
   /* ====================================================================================================================
      Panneau « Assistant »
      ==================================================================================================================== */
-  const chat = { root: null, msgs: [], running: null, history: [] };
+  const chat = { root: null, msgs: [], running: null, history: [], sel: null };
+
+  const modelName = () => {
+    const m = A.MODELS.find((x) => x[0] === S.get('aiModel'));
+    return m ? m[1].split(' : ')[0].replace(/^Claude\s+/, '').trim() : 'Claude';
+  };
+
+  /** Sélection du document retenue pour l'assistant (elle survit au passage du focus dans la zone de saisie). */
+  function liveSel() {
+    const r = chat.sel;
+    if (!r) return null;
+    try { if (r.collapsed || !ed.contains(r.commonAncestorContainer)) return null; } catch (_) { return null; }
+    return r;
+  }
+
+  function paintSel() {
+    if (!chat.root || !chat.selBox) return;
+    const r = liveSel();
+    const txt = r ? r.toString().replace(/\s+/g, ' ').trim() : '';
+    chat.selBox.hidden = !txt;
+    if (!txt) return;
+    const words = txt.split(' ').length;
+    chat.selTxt.textContent = '« ' + (txt.length > 70 ? txt.slice(0, 70) + '…' : txt) + ' »';
+    chat.selLab.textContent = 'Sélection · ' + words + (words > 1 ? ' mots' : ' mot');
+  }
+
+  document.addEventListener('selectionchange', () => {
+    if (!chat.root || !chat.root.isConnected) return;
+    const s = window.getSelection();
+    if (!s.rangeCount) return;
+    const r = s.getRangeAt(0);
+    if (!ed.contains(r.commonAncestorContainer)) return;     // le focus est dans le panneau : on garde la dernière sélection
+    chat.sel = r.collapsed ? null : r.cloneRange();
+    paintSel();
+  });
 
   function buildChat() {
     const list = h('div', { class: 'as-msgs', 'aria-live': 'polite' });
-    const input = h('textarea', { class: 'as-input', rows: '1', placeholder: 'Posez une question sur le document ou demandez une idée…', 'aria-label': 'Message pour l’assistant', spellcheck: 'false' });
-    const sendBtn = h('button', { type: 'button', class: 'ai-send big', title: 'Envoyer (Entrée)', 'aria-label': 'Envoyer' }, ic('i-send', 'sm'));
+    const input = h('textarea', { class: 'as-input', rows: '1', placeholder: 'Demandez ce que vous voulez', 'aria-label': 'Message pour l’assistant', spellcheck: 'false' });
+    const sendBtn = h('button', { type: 'button', class: 'ai-send big as-send', title: 'Envoyer (Entrée)', 'aria-label': 'Envoyer', disabled: true }, ic('i-send'));
+    const plusBtn = noFocus(h('button', { type: 'button', class: 'as-plus', title: 'Outils de l’assistant', 'aria-label': 'Outils de l’assistant' }, ic('i-plus')));
+    const modelLab = h('span', { text: modelName() });
+    const modelBtn = noFocus(h('button', { type: 'button', class: 'as-model', title: 'Choisir le modèle' }, ic('i-sparkle', 'sm'), modelLab, ic('i-chev-down', 'sm')));
+    const newBtn = noFocus(h('button', { type: 'button', class: 'as-new', title: 'Nouvelle conversation', 'aria-label': 'Nouvelle conversation' }, ic('i-edit')));
+    const selLab = h('b', { text: '' });
+    const selTxt = h('span', { class: 'as-sel-txt' });
+    const selX = noFocus(h('button', { type: 'button', class: 'as-sel-x', title: 'Ne pas utiliser la sélection', 'aria-label': 'Ne pas utiliser la sélection' }, ic('i-close', 'sm')));
+    const selBox = h('div', { class: 'as-sel', hidden: true }, ic('i-doc', 'sm'), h('div', { class: 'as-sel-body' }, selLab, selTxt), selX);
     const root = h('div', { class: 'as-root' },
-      h('div', { class: 'as-top' }, h('b', { text: 'Assistant IA' }), h('span', { class: 'ai-fill' }),
-        h('button', { type: 'button', class: 'chipbtn', text: 'Nouvelle conversation', onclick: () => { stop(); chat.history = []; chat.msgs = []; fillEmpty(); } })),
+      h('div', { class: 'as-top' }, h('span', { class: 'as-top-side' }), modelBtn, newBtn),
       list,
-      h('div', { class: 'as-compose' }, input, sendBtn),
-      h('div', { class: 'ai-note', text: 'Le texte du document est envoyé au service d’IA pour répondre. Les réponses peuvent contenir des erreurs.' }));
+      h('div', { class: 'as-dock' },
+        selBox,
+        h('div', { class: 'as-bar' }, plusBtn, h('div', { class: 'as-field' }, input, sendBtn)),
+        h('div', { class: 'ai-note', text: 'Le texte du document est envoyé au service d’IA pour répondre. Vérifiez les réponses.' })));
     chat.list = list; chat.input = input; chat.sendBtn = sendBtn; chat.root = root;
+    chat.selBox = selBox; chat.selTxt = selTxt; chat.selLab = selLab;
 
-    const grow = () => { input.style.height = 'auto'; input.style.height = Math.min(120, input.scrollHeight) + 'px'; };
+    const sync = () => { sendBtn.disabled = !chat.running && !input.value.trim(); };
+    const grow = () => { input.style.height = 'auto'; input.style.height = Math.min(132, input.scrollHeight) + 'px'; sync(); };
+    chat.sync = sync;
     input.addEventListener('input', grow);
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); say(input.value); } });
     sendBtn.addEventListener('click', () => { if (chat.running) stop(); else say(input.value); });
+    newBtn.addEventListener('click', () => { stop(); chat.history = []; fillEmpty(); input.focus(); });
+    selX.addEventListener('click', () => { chat.sel = null; paintSel(); });
+
+    modelBtn.addEventListener('click', () => {
+      const cur2 = S.get('aiModel');
+      P.menu.open([
+        ...A.MODELS.map(([id, label]) => {
+          const [name, desc] = label.split(' : ');
+          return { label: name, desc: desc ? desc.charAt(0).toUpperCase() + desc.slice(1) : undefined, checked: cur2 === id, action: () => S.set('aiModel', id) };
+        }),
+        '-',
+        { label: 'Paramètres de l’IA…', icon: 'i-settings', action: () => S.openDialog('ai') },
+      ], { anchor: modelBtn, align: 'center' });
+    });
+    S.onChange((k) => { if (k === 'aiModel' || k === '*') modelLab.textContent = modelName(); });
+
+    plusBtn.addEventListener('click', () => {
+      P.menu.open([
+        { label: 'Relire le document', icon: 'i-proof', action: () => review() },
+        Object.assign(T('summarize', null), { icon: 'i-lines' }),
+        Object.assign(T('outline', null), { icon: 'i-list-bullet' }),
+        Object.assign(T('titles', null), { icon: 'i-title' }),
+        Object.assign(T('ideas', null), { icon: 'i-bulb' }),
+        Object.assign(T('continue', null), { icon: 'i-edit' }),
+        '-',
+        { label: 'Sur le texte sélectionné', icon: 'i-sparkle', disabled: () => !liveSel(), items: () => selectionItems(liveSel(), true) },
+        '-',
+        { label: 'Paramètres de l’IA…', icon: 'i-settings', action: () => S.openDialog('ai') },
+      ], { anchor: plusBtn, align: 'start' });
+    });
+
     fillEmpty();
     return root;
   }
 
   function fillEmpty() {
     chat.list.replaceChildren();
-    const quick = [
-      ['Résumer le document', () => say('Résume le document en quelques phrases.')],
-      ['Idées pour continuer', () => say('Propose 5 idées concrètes pour continuer ou enrichir ce document.')],
-      ['Proposer un plan', () => say('Propose un plan détaillé pour ce document, avec des titres et des sous-points.')],
-      ['Trouver un titre', () => say('Propose 6 titres possibles pour ce document.')],
-      ['Relire le document', () => review()],
-      ['Simplifier la sélection', () => say('Réécris la sélection en langage clair et simple.')],
+    const needSel = (fn) => () => { if (!A.selection(liveSel()).text) { P.toast('Sélectionnez d’abord un passage du document.'); return; } fn(); };
+    const main = [
+      ['Résumer le texte', 'i-lines', '#3478f6', () => say('Résume le document en quelques phrases.')],
+      ['Trouver des idées', 'i-bulb', '#f2a007', () => say('Propose 5 idées concrètes pour continuer ou enrichir ce document.')],
+      ['Proposer un plan', 'i-list-bullet', '#2fb457', () => say('Propose un plan détaillé pour ce document, avec des titres et des sous-points.')],
+      ['Relire le document', 'i-proof', '#8e5af7', () => review()],
     ];
+    const more = [
+      ['Trouver un titre', 'i-title', '#ec4899', () => say('Propose 6 titres possibles pour ce document.')],
+      ['Simplifier la sélection', 'i-wand', '#ff7a1a', needSel(() => say('Réécris la sélection en langage clair et simple.'))],
+      ['Corriger la sélection', 'i-check', '#14b8a6', needSel(() => say('Corrige l’orthographe, la grammaire et la ponctuation de la sélection, sans changer le sens ni le ton.'))],
+      ['Raccourcir', 'i-minimize', '#5e5ce6', needSel(() => say('Réécris la sélection de façon plus concise, sans perdre d’information importante.'))],
+    ];
+    const chip = ([label, icon, color, fn]) => {
+      const b = noFocus(h('button', { type: 'button', class: 'as-chip', onclick: fn }, h('span', { class: 'as-chip-ic' }, ic(icon)), label));
+      b.style.setProperty('--c', color);
+      return b;
+    };
+    const chips = h('div', { class: 'as-chips' }, main.map(chip));
+    const moreBtn = noFocus(h('button', { type: 'button', class: 'as-chip plain', text: 'Plus' }));
+    moreBtn.addEventListener('click', () => { moreBtn.remove(); more.forEach((m) => chips.append(chip(m))); });
+    chips.append(moreBtn);
     chat.list.append(h('div', { class: 'as-empty' },
       h('div', { class: 'as-hello' }, h('span', { class: 'ai-star lg' }, ic('i-sparkle')), h('b', { text: 'Comment puis-je vous aider ?' }),
-        h('p', { text: 'Je connais le contenu de votre document. Posez une question, demandez des idées ou une relecture.' })),
-      h('div', { class: 'ai-chips col' }, quick.map(([label, fn]) => h('button', { type: 'button', class: 'ai-chip', text: label, onclick: fn })))));
+        h('p', { text: 'Je connais le contenu de votre document.' })),
+      chips));
   }
 
   function bubble(role) {
@@ -322,16 +413,18 @@
     return b;
   }
   const toEnd = () => { chat.list.scrollTop = chat.list.scrollHeight; };
+  const dots = () => h('span', { class: 'as-dots', 'aria-label': 'Réponse en cours' }, h('i'), h('i'), h('i'));
 
   function stop() { if (chat.running) { chat.running.cancel(); chat.running = null; } setBusy(false); }
   function setBusy(on) {
-    chat.sendBtn.replaceChildren(ic(on ? 'i-stop' : 'i-send', 'sm'));
+    chat.sendBtn.replaceChildren(ic(on ? 'i-stop' : 'i-send'));
     chat.sendBtn.title = on ? 'Arrêter' : 'Envoyer (Entrée)';
     chat.sendBtn.classList.toggle('busy', on);
+    chat.sendBtn.disabled = on ? false : !chat.input.value.trim();
   }
 
   function systemWithDoc() {
-    const sel = A.selection(null);
+    const sel = A.selection(liveSel());
     let s = A.SYSTEM + '\n\nContenu du document :\n<document>\n' + cap(A.docText(), 40000) + '\n</document>';
     if (sel.text) s += '\n\nTexte actuellement sélectionné par l’utilisateur :\n<selection>\n' + cap(sel.text, 8000) + '\n</selection>';
     return { system: s, sel };
@@ -345,7 +438,7 @@
     chat.input.value = ''; chat.input.style.height = 'auto';
     bubble('user').textContent = text;
     const out = bubble('ai');
-    out.append(h('span', { class: 'ai-spin' }));
+    out.append(dots());
     chat.history.push({ role: 'user', content: text });
     toEnd();
     setBusy(true);
@@ -365,10 +458,11 @@
     chat.history.push({ role: 'assistant', content: answer });
     render(out, answer);
     const range = ctx.sel.range && !ctx.sel.range.collapsed ? ctx.sel.range.cloneRange() : null;
+    const act = (icon, label, fn) => noFocus(h('button', { type: 'button', class: 'ai-btn as-act', onclick: fn }, ic(icon, 'sm'), label));
     out.append(h('div', { class: 'as-acts' },
-      noFocus(h('button', { type: 'button', class: 'ai-btn', text: 'Insérer', onclick: () => { A.applyBelow(range || endRange(), answer); P.toast('Texte inséré · Ctrl+Z pour annuler.'); } })),
-      range ? noFocus(h('button', { type: 'button', class: 'ai-btn', text: 'Remplacer la sélection', onclick: () => { A.applyReplace(range, answer); P.toast('Sélection remplacée · Ctrl+Z pour annuler.'); } })) : null,
-      noFocus(h('button', { type: 'button', class: 'ai-btn', text: 'Copier', onclick: () => copy(answer) }))));
+      act('i-insert', 'Insérer', () => { A.applyBelow(range || endRange(), answer); P.toast('Texte inséré · Ctrl+Z pour annuler.'); }),
+      range ? act('i-swap', 'Remplacer la sélection', () => { A.applyReplace(range, answer); P.toast('Sélection remplacée · Ctrl+Z pour annuler.'); }) : null,
+      act('i-copy', 'Copier', () => copy(answer))));
     toEnd();
   }
 
@@ -384,6 +478,8 @@
   P.panels.assistant = function (body) {
     if (!chat.root) buildChat();
     body.append(chat.root);
+    paintSel();
+    chat.sync();
     setTimeout(() => { toEnd(); }, 0);
   };
 
@@ -425,7 +521,7 @@
     if (!chat.root) buildChat();
     if (chat.running) { P.toast('Une réponse est déjà en cours.'); return; }
     const out = bubble('ai');
-    const status = h('div', { class: 'as-status' }, h('span', { class: 'ai-spin' }), h('span', { text: 'Relecture en cours…' }));
+    const status = h('div', { class: 'as-status' }, dots(), h('span', { text: 'Relecture en cours…' }));
     out.append(status);
     toEnd();
     setBusy(true);

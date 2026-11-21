@@ -148,8 +148,10 @@
       let x = o.x, y = o.y;
       if (o.anchor) {
         const r = o.anchor.getBoundingClientRect();
-        x = o.align === 'right' ? r.right - w : r.left;
+        x = o.align === 'right' ? r.right - w : o.align === 'center' ? r.left + (r.width - w) / 2 : r.left;
         y = r.bottom + 4;
+        // pas assez de place en dessous (bouton en bas de l'écran) : la fenêtre s'ouvre au-dessus
+        if (y + hgt > window.innerHeight - 8 && r.top - hgt - 4 >= 8) y = r.top - hgt - 4;
       }
       x = Math.max(8, Math.min(x == null ? 8 : x, window.innerWidth - w - 8));
       y = Math.max(8, Math.min(y == null ? 8 : y, window.innerHeight - hgt - 8));

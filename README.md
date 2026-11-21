@@ -5,7 +5,7 @@ vos documents restent sur votre ordinateur (fichiers `.plume`).
 
 ## Obtenir l'application (.exe)
 
-Il existe deux façons. Dans les deux cas, vous obtenez un installateur `Plume Setup 1.4.0.exe`.
+Il existe deux façons. Dans les deux cas, vous obtenez un installateur `Plume Setup 1.4.1.exe`.
 
 ### Option A — Sur votre PC (si vous pouvez installer des logiciels)
 
@@ -18,14 +18,14 @@ npm start          :: pour essayer l'application tout de suite
 npm run dist       :: pour fabriquer l'installateur
 ```
 
-3. L'installateur se trouve dans `dist\Plume Setup 1.4.0.exe`. Double-cliquez pour l'installer.
+3. L'installateur se trouve dans `dist\Plume Setup 1.4.1.exe`. Double-cliquez pour l'installer.
 
 ### Option B — Sans rien installer (GitHub Actions)
 
 1. Créez un dépôt GitHub et envoyez-y le contenu de ce dossier.
 2. Onglet **Actions** → **Construire l'installateur Windows** → **Run workflow**.
 3. Quand c'est terminé (environ 3 minutes), l'installateur est publié dans la section **Releases** du dépôt
-   (version « Plume 1.4.0 ») et aussi disponible comme élément **Plume-installateur** au bas de la page de l'exécution.
+   (version « Plume 1.4.1 ») et aussi disponible comme élément **Plume-installateur** au bas de la page de l'exécution.
 
 > Windows peut afficher « Windows a protégé votre ordinateur » (SmartScreen) : l'installateur n'est pas signé
 > numériquement. Cliquez sur **Informations complémentaires** puis **Exécuter quand même**.
@@ -104,7 +104,7 @@ abonnement ni serveur : l'IA est **désactivée par défaut**, et rien n'est env
   Le résultat s'affiche en direct dans une carte : **Remplacer**, **Insérer dessous**, **En suggestion** (au nom de « Assistant IA », à accepter ou refuser
   dans le panneau Suggestions), Copier, Réessayer, et un champ pour préciser (« plus court… »). Tout est annulable avec `Ctrl+Z`.
 - *Demander à l'IA* (`Ctrl+Alt+J`, ou `/` → IA) : rédige un texte à partir d'une consigne, en tenant compte du début du document ; continuer l'écriture, générer un plan.
-- *Panneau Assistant* (bouton ✦ en haut à droite) : conversation qui connaît le document et la sélection ; chaque réponse peut être insérée ou remplacer la sélection.
+- *Panneau Assistant* (bouton ✦ en haut à droite) : écran d'accueil avec pastilles d'actions (résumer, idées, plan, relecture… et « Plus »), choix du modèle en haut, champ de saisie arrondi, menu « + » pour les outils. La conversation connaît le document ; une pastille affiche la sélection transmise (retirable avec ×). Chaque réponse peut être insérée ou remplacer la sélection.
 - *Relecture* (Outils → Assistant IA, ou la carte d'orthographe) : fautes et tournures maladroites listées une à une, avec **Appliquer / Ignorer / Tout appliquer**.
 - *Orthographe* : la pastille d'un mot fautif propose « Corriger la phrase avec l'IA ».
 - **Confidentialité** : seul le texte concerné (sélection ; document entier pour le panneau et la relecture) et votre consigne partent vers `api.anthropic.com` ;
