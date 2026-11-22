@@ -165,7 +165,28 @@ option { background: var(--surface); color: var(--text); }
 #btn-expand { display: none; }
 body.compact #btn-expand { display: inline-grid; }
 body.compact #menubar, body.compact #toolbar { display: none; }
-#side { padding-top: var(--chrome-h, 86px); animation: slide-in-r .22s cubic-bezier(.2, .8, .2, 1); }
+#side { position: relative; overflow: hidden; padding-top: var(--chrome-h, 86px); animation: slide-in-r .22s cubic-bezier(.2, .8, .2, 1); transition: width .26s cubic-bezier(.2, .8, .2, 1); }
+/* panneau rétractable : le contenu garde sa largeur et se fait rogner (pas de reflux du texte) pendant la réduction */
+#sidetabs, #sidebody { width: 383px; flex: none; transition: opacity .2s .06s; }
+#sidebody { flex: 1 1 auto; }
+#side.collapsed { width: 52px; }
+#side.collapsed #sidetabs, #side.collapsed #sidebody { opacity: 0; pointer-events: none; transition: opacity .1s; }
+#siderail { position: absolute; z-index: 1; left: 0; right: 0; top: var(--chrome-h, 86px); bottom: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 0 12px; opacity: 0; pointer-events: none; transition: opacity .1s; }
+#side.collapsed #siderail { opacity: 1; pointer-events: auto; transition: opacity .2s .1s; }
+.rail-btn { position: relative; display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 10px; background: transparent; color: var(--muted); transition: background .12s, color .12s; }
+.rail-btn:hover { background: var(--hover); color: var(--text); }
+.rail-btn.on { background: var(--accent-bg); color: var(--accent); }
+.rail-btn[data-tab="assistant"] { color: #7a5cf0; }
+.rail-btn svg.ic { width: 19px; height: 19px; }
+.rail-badge { position: absolute; top: 1px; right: 0; min-width: 15px; height: 15px; padding: 0 4px; border-radius: 8px; background: var(--accent); color: #fff; font-size: 10px; font-weight: 600; line-height: 15px; text-align: center; box-shadow: 0 0 0 1.5px var(--panel); }
+.rail-badge[hidden] { display: none; }
+.rail-close { margin-top: auto; width: 30px; height: 30px; }
+.side-handle { position: absolute; z-index: 6; left: 0; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 14px; height: 56px; padding: 0; border: 0; border-radius: 0 10px 10px 0;
+  background: var(--surface); color: var(--muted); opacity: .75; box-shadow: 0 0 0 .5px var(--line), 1px 0 5px rgba(0, 0, 0, .1); transition: opacity .15s, color .15s, width .15s; }
+.side-handle:hover, .side-handle:focus-visible { width: 18px; opacity: 1; color: var(--text); }
+.side-handle svg.ic { width: 12px; height: 12px; stroke-width: 2.3; transition: transform .26s cubic-bezier(.2, .8, .2, 1); }
+#side.collapsed .side-handle svg.ic { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { #side, #sidetabs, #sidebody, #siderail, .side-handle svg.ic { transition: none; } }
 
 /* ---------- Barre d'outils : groupes en capsules ---------- */
 #toolbar { display: flex; align-items: center; gap: 8px; padding: 2px 12px 9px; min-height: 42px; background: transparent; }

@@ -272,9 +272,53 @@
 
   let tab = 'comments';
   const side = $('#side');
-  P.showPanel = (name) => { if (name) tab = name; side.hidden = false; P.renderPanel(); };
+  const rail = $('#siderail');
+  const handle = $('#side-handle');
+  let collapsed = false;      // panneau réduit en rail d'icônes (état de la session)
+
+  /* Rail d'icônes : le panneau réduit reste à portée de clic, avec les compteurs de commentaires et de suggestions. */
+  const RAIL = [['comments', 'i-comment', 'Commentaires'], ['suggestions', 'i-suggest', 'Suggestions'], ['versions', 'i-history', 'Versions'],
+    ['variables', 'i-at', 'Variables'], ['assistant', 'i-sparkle', 'Assistant IA']];
+  RAIL.forEach(([id, icon, label]) => rail.append(h('button', { type: 'button', class: 'rail-btn', 'data-tab': id, title: label, 'aria-label': label },
+    P.svgIcon(icon), h('span', { class: 'rail-badge', hidden: true }))));
+  rail.append(h('button', { type: 'button', class: 'rail-btn rail-close', title: 'Fermer le panneau', 'aria-label': 'Fermer le panneau', onclick: () => { side.hidden = true; } }, P.svgIcon('i-close', 'sm')));
+
+  function paintRail() {
+    $$('#siderail .rail-btn[data-tab]').forEach((b) => {
+      const id = b.dataset.tab;
+      b.classList.toggle('on', id === tab);
+      const n = id === 'comments' ? P.openCommentCount() : id === 'suggestions' ? P.suggestionCount() : 0;
+      const badge = b.querySelector('.rail-badge');
+      badge.hidden = !n;
+      badge.textContent = n > 99 ? '99+' : String(n || '');
+    });
+  }
+  function setCollapsed(v) {
+    collapsed = !!v;
+    side.classList.toggle('collapsed', collapsed);
+    handle.setAttribute('aria-expanded', String(!collapsed));
+    const label = collapsed ? 'Développer le panneau' : 'Réduire le panneau';
+    handle.title = label;
+    handle.setAttribute('aria-label', label);
+    // un panneau réduit ne doit plus prendre le focus clavier
+    $('#sidetabs').inert = collapsed;
+    $('#sidebody').inert = collapsed;
+    rail.inert = !collapsed;
+    paintRail();
+  }
+  app.setSideCollapsed = setCollapsed;
+  app.sideCollapsed = () => collapsed;
+  setCollapsed(false);
+  // panneau réduit : les compteurs du rail suivent les modifications du document
+  let railTimer = 0;
+  ed.addEventListener('input', () => { if (!collapsed || side.hidden) return; clearTimeout(railTimer); railTimer = setTimeout(paintRail, 250); });
+  handle.addEventListener('click', () => { if (collapsed) { setCollapsed(false); P.renderPanel(); } else setCollapsed(true); });
+  rail.addEventListener('click', (e) => { const b = e.target.closest('.rail-btn[data-tab]'); if (b) P.showPanel(b.dataset.tab); });
+
+  P.showPanel = (name) => { if (name) tab = name; side.hidden = false; if (collapsed) setCollapsed(false); P.renderPanel(); };
   P.renderPanel = () => {
-    if (side.hidden) return;
+    paintRail();
+    if (side.hidden || collapsed) return;
     $$('#sidetabs button[data-tab]').forEach((b) => {
       b.classList.toggle('on', b.dataset.tab === tab);
       if (!b.dataset.label) b.dataset.label = b.textContent;
@@ -288,7 +332,8 @@
     const fn = P.panels[tab];
     if (fn) fn(body);
   };
-  const togglePanel = (name) => { if (!side.hidden && tab === name) side.hidden = true; else P.showPanel(name); };
+  // le bouton de la barre ferme le panneau s'il est déjà affiché sur cet onglet ; réduit, il le redéveloppe
+  const togglePanel = (name) => { if (!side.hidden && !collapsed && tab === name) side.hidden = true; else P.showPanel(name); };
   app.togglePanel = togglePanel;
   $('#btn-history').addEventListener('click', () => togglePanel('versions'));
   $('#btn-comments').addEventListener('click', () => togglePanel('comments'));
