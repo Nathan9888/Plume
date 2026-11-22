@@ -35,6 +35,11 @@ npm run dist       :: pour fabriquer l'installateur
 Le même éditeur existe sous forme d'**un seul fichier HTML** : double-cliquez dessus, il s'ouvre dans Chrome, Edge ou Firefox, sans installation
 ni connexion Internet (sauf pour l'assistant IA, facultatif). Il est joint à chaque *Release* du dépôt (`Plume.html`), ou se fabrique avec `npm run build:web` (fichier `dist-web\Plume.html`).
 
+**En site web (GitHub Pages)** : le workflow *Publier le site (GitHub Pages)* publie ce même fichier à l'adresse `https://<compte>.github.io/Plume/`
+à chaque version (ou à la demande : **Actions** → **Publier le site** → **Run workflow**). Réglage à faire une seule fois :
+**Settings** → **Pages** → **Source** : **GitHub Actions**. Comme pour `Plume.html`, tout fonctionne dans le navigateur : aucun serveur ne reçoit vos documents
+(la clé API de l'IA, si vous en saisissez une, reste dans le stockage local du navigateur pour ce site).
+
 - **Chrome et Edge** : « Ouvrir » et « Enregistrer » travaillent directement sur vos fichiers `.plume` (le navigateur demande l'autorisation).
   Dans **Firefox et Safari**, l'enregistrement se fait par téléchargement.
 - Les fichiers `.plume` sont **les mêmes** que ceux de la version Windows, **y compris chiffrés par mot de passe** (même format, mêmes algorithmes).
