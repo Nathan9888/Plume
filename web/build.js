@@ -1,4 +1,5 @@
-/* Construit dist-web/Plume.html : toute l'application dans un seul fichier, qui s'ouvre dans un navigateur.
+/* Construit dist-web/Plume.html (toute l'application dans un seul fichier, qui s'ouvre dans un navigateur)
+   et dist-site/ (le même éditeur sous forme de site installable : manifeste, service worker, icônes).
    Usage : node web/build.js */
 'use strict';
 const fs = require('fs');
@@ -33,12 +34,33 @@ html = html.replace(/<script src="([^"]+)"><\/script>/g, (_m, f) => inlineScript
 const icon = fs.readFileSync(path.join(__dirname, 'favicon.png')).toString('base64');
 html = html.replace('<title>Plume</title>', () => '<title>Plume</title>\n  <link rel="icon" type="image/png" href="data:image/png;base64,' + icon + '">');
 
-const csp = "default-src 'none'; script-src " + hashes.join(' ') + "; style-src 'unsafe-inline'; img-src data: blob:; font-src 'none'; connect-src https://api.anthropic.com https://generativelanguage.googleapis.com; form-action 'none'; base-uri 'none'";
-html = html.replace(/<meta http-equiv="Content-Security-Policy" content="[^"]*">/, () => '<meta http-equiv="Content-Security-Policy" content="' + csp + '">');
-if (!html.includes("script-src 'sha256-")) throw new Error('La politique de sécurité n’a pas été remplacée.');
-if (/<script src=|<link rel="stylesheet"/.test(html)) throw new Error('Une ressource externe est restée dans la page.');
+// Deux sorties : dist-web/Plume.html (fichier autonome) et dist-site/ (le même éditeur, installable comme application : PWA).
+const CONNECT = 'https://api.anthropic.com https://generativelanguage.googleapis.com';
+const makeCsp = (site) => "default-src 'none'; script-src " + hashes.join(' ') + "; style-src 'unsafe-inline'; img-src data: blob:" + (site ? " 'self'" : '')
+  + "; font-src 'none'; connect-src " + CONNECT + (site ? "; manifest-src 'self'; worker-src 'self'" : '') + "; form-action 'none'; base-uri 'none'";
+const CSP_RE = /<meta http-equiv="Content-Security-Policy" content="[^"]*">/;
+const withCsp = (h, site) => h.replace(CSP_RE, () => '<meta http-equiv="Content-Security-Policy" content="' + makeCsp(site) + '">');
+const SITE_HEAD = '\n  <meta name="theme-color" content="#ececef">\n  <link rel="manifest" href="manifest.webmanifest">\n  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">';
+const siteHtml = withCsp(html.replace(/(<link rel="icon"[^>]*>)/, (m) => m + SITE_HEAD), true);
+html = withCsp(html, false);
+for (const h of [html, siteHtml]) {
+  if (!h.includes("script-src 'sha256-")) throw new Error('La politique de sécurité n’a pas été remplacée.');
+  if (/<script src=|<link rel="stylesheet"/.test(h)) throw new Error('Une ressource externe est restée dans la page.');
+}
+if (!siteHtml.includes('<link rel="manifest"') || html.includes('<link rel="manifest"')) throw new Error('Le manifeste doit figurer dans la version site, et seulement là.');
 
 const out = path.join(root, 'dist-web');
 fs.mkdirSync(out, { recursive: true });
 fs.writeFileSync(path.join(out, 'Plume.html'), html);
 console.log('dist-web/Plume.html : ' + (Buffer.byteLength(html) / 1024).toFixed(0) + ' Ko, ' + hashes.length + ' scripts');
+
+const site = path.join(root, 'dist-site');
+fs.rmSync(site, { recursive: true, force: true });
+fs.mkdirSync(path.join(site, 'icons'), { recursive: true });
+const pwa = path.join(__dirname, 'pwa');
+fs.writeFileSync(path.join(site, 'index.html'), siteHtml);
+fs.copyFileSync(path.join(pwa, 'manifest.webmanifest'), path.join(site, 'manifest.webmanifest'));
+fs.writeFileSync(path.join(site, 'sw.js'), read(path.join(pwa, 'sw.js')).replace('__VERSION__', pkg.version));
+for (const f of fs.readdirSync(path.join(pwa, 'icons'))) fs.copyFileSync(path.join(pwa, 'icons', f), path.join(site, 'icons', f));
+JSON.parse(read(path.join(site, 'manifest.webmanifest')));
+console.log('dist-site/ : index.html + manifeste + service worker + icônes (version ' + pkg.version + ')');

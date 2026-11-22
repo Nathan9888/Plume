@@ -277,6 +277,8 @@
     { label: 'Aide', items: () => [
       { label: 'Raccourcis clavier', hint: 'Ctrl+/', icon: 'i-keyboard', action: () => C().openDialog('shortcuts') },
       { label: 'Paramètres…', icon: 'i-settings', action: () => C().openDialog('appearance') },
+      ...(typeof native !== 'undefined' && native.install && native.install.available()
+        ? [{ label: 'Installer Plume comme application…', icon: 'i-monitor', action: () => native.install.prompt() }] : []),
       '-',
       { label: 'À propos de Plume', icon: 'i-info', action: () => C().openDialog('about') },
     ] },

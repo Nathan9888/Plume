@@ -35,10 +35,16 @@ npm run dist       :: pour fabriquer l'installateur
 Le même éditeur existe sous forme d'**un seul fichier HTML** : double-cliquez dessus, il s'ouvre dans Chrome, Edge ou Firefox, sans installation
 ni connexion Internet (sauf pour l'assistant IA, facultatif). Il est joint à chaque *Release* du dépôt (`Plume.html`), ou se fabrique avec `npm run build:web` (fichier `dist-web\Plume.html`).
 
-**En site web (GitHub Pages)** : le workflow *Publier le site (GitHub Pages)* publie ce même fichier à l'adresse `https://<compte>.github.io/Plume/`
+**En site web (GitHub Pages)** : le workflow *Publier le site (GitHub Pages)* publie l'éditeur à l'adresse `https://<compte>.github.io/Plume/`
 à chaque version (ou à la demande : **Actions** → **Publier le site** → **Run workflow**). Réglage à faire une seule fois :
 **Settings** → **Pages** → **Source** : **GitHub Actions**. Comme pour `Plume.html`, tout fonctionne dans le navigateur : aucun serveur ne reçoit vos documents
 (la clé API de l'IA, si vous en saisissez une, reste dans le stockage local du navigateur pour ce site).
+
+**Installer le site comme application (PWA, Chrome / Edge)** : sur le site, cliquez sur l'icône d'installation de la barre d'adresse, ou sur
+**Aide → Installer Plume comme application…**. La fenêtre installée fusionne la barre d'onglets et les boutons de la fenêtre
+(mode « Window Controls Overlay » : l'espace vide à droite des onglets déplace la fenêtre), la couleur de la barre de titre suit le thème clair ou sombre,
+et l'éditeur s'ouvre aussi hors ligne (service worker). Le fichier `Plume.html` ouvert depuis le disque ne peut pas s'installer : seul le site le peut.
+Le site est fabriqué par `node web/build.js` (dossier `dist-site`).
 
 - **Chrome et Edge** : « Ouvrir » et « Enregistrer » travaillent directement sur vos fichiers `.plume` (le navigateur demande l'autorisation).
   Dans **Firefox et Safari**, l'enregistrement se fait par téléchargement.

@@ -1,0 +1,20 @@
+{
+  "id": "plume",
+  "name": "Plume",
+  "short_name": "Plume",
+  "description": "Traitement de texte élégant : hors ligne, fichiers .plume, assistant IA facultatif.",
+  "lang": "fr",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "background_color": "#f5f5f7",
+  "theme_color": "#ececef",
+  "categories": ["productivity", "office"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

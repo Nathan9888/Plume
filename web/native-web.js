@@ -10,6 +10,9 @@
   const enc = new TextEncoder();
   const dec = new TextDecoder('utf-8');
   const FSA = typeof window.showOpenFilePicker === 'function' && typeof window.showSaveFilePicker === 'function';
+  let installEvt = null;   // proposition d'installation du navigateur, gardée pour le menu Aide
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; });
+  window.addEventListener('appinstalled', () => { installEvt = null; });
   const toast = (m, ms) => { try { window.P.toast(m, ms); } catch (_) { /* interface pas encore prête */ } };
 
   // ---------- Petits outils ----------
@@ -292,7 +295,26 @@
       if (kind === 'mail' && /^mailto:/i.test(value)) { window.location.href = value; return true; }
       return false;   // « afficher dans le dossier » n'existe pas dans un navigateur
     },
-    setTheme: async () => true,
+    // La couleur de la barre de titre d'une application installée (PWA) suit celle de la barre d'onglets, en clair comme en sombre.
+    setTheme: async (t) => {
+      try {
+        if (!t || !/^#[0-9a-f]{6}$/i.test(t.color)) return true;
+        let m = document.querySelector('meta[name="theme-color"]');
+        if (!m) { m = document.createElement('meta'); m.name = 'theme-color'; document.head.append(m); }
+        m.content = t.color;
+      } catch (_) { /* ignoré */ }
+      return true;
+    },
+    // Installation comme application (Chrome, Edge) : n'existe que sur le site, une fois que le navigateur la propose.
+    install: {
+      available: () => !!installEvt,
+      prompt: async () => {
+        const e = installEvt;
+        if (!e) return false;
+        installEvt = null;
+        try { e.prompt(); const r = await e.userChoice; return !!r && r.outcome === 'accepted'; } catch (_) { return false; }
+      },
+    },
     setUiZoom: async (f) => {
       // Le zoom CSS agrandit aussi les unités vh : on compense pour que la fenêtre ne déborde pas.
       const z = f && f > 0 && f !== 1 ? f : 1;
@@ -510,6 +532,11 @@
     onMenu: () => {},
     onExternalOpen: () => {},
   };
+
+  // Application installable (site servi en https avec un manifeste) : service worker pour le mode hors ligne.
+  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && document.querySelector('link[rel="manifest"]')) {
+    window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => { /* hors ligne non disponible */ }); });
+  }
 
   // Fermer l'onglet du navigateur avec des modifications non enregistrées : le navigateur demande confirmation.
   window.addEventListener('beforeunload', (e) => {

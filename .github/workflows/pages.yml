@@ -1,6 +1,6 @@
 name: Publier le site (GitHub Pages)
 
-# Publie la version navigateur (le même fichier que Plume.html) comme site : https://<compte>.github.io/Plume/
+# Publie la version navigateur (même éditeur que Plume.html, avec manifeste, icônes et service worker : installable comme application) comme site : https://<compte>.github.io/Plume/
 # Prérequis (une seule fois) : Settings → Pages → Source : « GitHub Actions ».
 on:
   workflow_dispatch:
@@ -30,8 +30,7 @@ jobs:
       - run: node web/build.js
       - name: Préparer le site
         run: |
-          mkdir site
-          cp dist-web/Plume.html site/index.html
+          cp -r dist-site site
           touch site/.nojekyll
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
