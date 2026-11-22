@@ -312,10 +312,82 @@
   // panneau réduit : les compteurs du rail suivent les modifications du document
   let railTimer = 0;
   ed.addEventListener('input', () => { if (!collapsed || side.hidden) return; clearTimeout(railTimer); railTimer = setTimeout(paintRail, 250); });
-  handle.addEventListener('click', () => { if (collapsed) { setCollapsed(false); P.renderPanel(); } else setCollapsed(true); });
+
+  /* Largeur du panneau : on le tire par son bord gauche. Trop étroit, il se rétracte en rail ; tiré vers la gauche, il se redéploie. */
+  const resizer = $('#side-resizer');
+  const SIDE_MIN = 384, SIDE_MAX = 760, DOC_MIN = 420;
+  const COLLAPSE_BELOW = 280, EXPAND_ABOVE = 320;          // hystérésis : évite le clignotement autour du seuil
+  let sideW = SIDE_MIN;
+  try { const v = Number(localStorage.getItem('plume.sideW')); if (v >= SIDE_MIN && v <= 1200) sideW = v; } catch (_) { /* stockage indisponible */ }
+  function fitSide() {
+    const ws = $('#workspace').getBoundingClientRect().width;
+    const ol = $('#outline');
+    const ow = ol && !ol.hidden ? ol.getBoundingClientRect().width : 0;
+    const room = ws ? ws - ow - DOC_MIN : SIDE_MAX;           // le document garde toujours au moins DOC_MIN px
+    const eff = Math.round(Math.max(SIDE_MIN, Math.min(sideW, SIDE_MAX, room)));
+    side.style.setProperty('--side-w', eff + 'px');
+    resizer.setAttribute('aria-valuenow', String(eff));
+    return eff;
+  }
+  app.fitSide = fitSide;
+  fitSide();
+  window.addEventListener('resize', fitSide);
+  const saveW = () => { try { localStorage.setItem('plume.sideW', String(Math.round(sideW))); } catch (_) { /* stockage indisponible */ } };
+  const toggleCollapsed = () => { if (collapsed) { setCollapsed(false); P.renderPanel(); } else setCollapsed(true); };
+
+  let drag = null, dragged = false;
+  function beginDrag(e, viaHandle) {
+    if (e.button !== 0 || side.hidden) return;
+    drag = { x: e.clientX, id: e.pointerId, el: e.currentTarget, live: !viaHandle };   // la poignée n'entame le glissement qu'après quelques pixels
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) { /* ignoré */ }
+    if (!viaHandle) e.preventDefault();
+  }
+  function moveDrag(e) {
+    if (!drag) return;
+    if (!drag.live) { if (Math.abs(e.clientX - drag.x) < 5) return; drag.live = true; }
+    dragged = true;
+    document.body.classList.add('side-resizing');
+    const want = $('#workspace').getBoundingClientRect().right - e.clientX;      // largeur voulue par la position de la souris
+    if (collapsed) {
+      if (want < EXPAND_ABOVE) return;
+      document.body.classList.add('side-dragging');                                // pas d'animation pendant le suivi
+      setCollapsed(false); sideW = want; fitSide(); P.renderPanel();
+    } else if (want < COLLAPSE_BELOW) {
+      document.body.classList.remove('side-dragging');                             // la rétractation, elle, est animée
+      setCollapsed(true);
+    } else {
+      document.body.classList.add('side-dragging');
+      sideW = want; fitSide();
+    }
+  }
+  function endDrag() {
+    if (!drag) return;
+    try { drag.el.releasePointerCapture(drag.id); } catch (_) { /* ignoré */ }
+    const moved = drag.live;
+    drag = null;
+    document.body.classList.remove('side-resizing', 'side-dragging');
+    if (moved) saveW();
+    setTimeout(() => { dragged = false; }, 0);                                      // le « click » qui suit un glissement est ignoré
+  }
+  for (const [el, viaHandle] of [[resizer, false], [handle, true]]) {
+    el.addEventListener('pointerdown', (e) => beginDrag(e, viaHandle));
+    el.addEventListener('pointermove', moveDrag);
+    el.addEventListener('pointerup', endDrag);
+    el.addEventListener('pointercancel', endDrag);
+  }
+  resizer.addEventListener('dblclick', toggleCollapsed);
+  resizer.addEventListener('keydown', (e) => {
+    const step = e.shiftKey ? 80 : 24;
+    if (e.key === 'ArrowLeft') { if (collapsed) toggleCollapsed(); sideW = fitSide() + step; fitSide(); saveW(); }
+    else if (e.key === 'ArrowRight') { if (!collapsed) { sideW = Math.max(SIDE_MIN, fitSide() - step); fitSide(); saveW(); } }
+    else if (e.key === 'Enter' || e.key === ' ') toggleCollapsed();
+    else return;
+    e.preventDefault();
+  });
+  handle.addEventListener('click', () => { if (dragged) return; toggleCollapsed(); });
   rail.addEventListener('click', (e) => { const b = e.target.closest('.rail-btn[data-tab]'); if (b) P.showPanel(b.dataset.tab); });
 
-  P.showPanel = (name) => { if (name) tab = name; side.hidden = false; if (collapsed) setCollapsed(false); P.renderPanel(); };
+  P.showPanel = (name) => { if (name) tab = name; side.hidden = false; if (collapsed) setCollapsed(false); fitSide(); P.renderPanel(); };
   P.renderPanel = () => {
     paintRail();
     if (side.hidden || collapsed) return;

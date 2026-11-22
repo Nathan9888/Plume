@@ -165,9 +165,9 @@ option { background: var(--surface); color: var(--text); }
 #btn-expand { display: none; }
 body.compact #btn-expand { display: inline-grid; }
 body.compact #menubar, body.compact #toolbar { display: none; }
-#side { position: relative; overflow: hidden; padding-top: var(--chrome-h, 86px); animation: slide-in-r .22s cubic-bezier(.2, .8, .2, 1); transition: width .26s cubic-bezier(.2, .8, .2, 1); }
+#side { position: relative; overflow: hidden; width: var(--side-w, 384px); padding-top: var(--chrome-h, 86px); animation: slide-in-r .22s cubic-bezier(.2, .8, .2, 1); transition: width .26s cubic-bezier(.2, .8, .2, 1); }
 /* panneau rétractable : le contenu garde sa largeur et se fait rogner (pas de reflux du texte) pendant la réduction */
-#sidetabs, #sidebody { width: 383px; flex: none; transition: opacity .2s .06s; }
+#sidetabs, #sidebody { width: calc(var(--side-w, 384px) - 1px); flex: none; transition: opacity .2s .06s; }
 #sidebody { flex: 1 1 auto; }
 #side.collapsed { width: 52px; }
 #side.collapsed #sidetabs, #side.collapsed #sidebody { opacity: 0; pointer-events: none; transition: opacity .1s; }
@@ -186,6 +186,13 @@ body.compact #menubar, body.compact #toolbar { display: none; }
 .side-handle:hover, .side-handle:focus-visible { width: 18px; opacity: 1; color: var(--text); }
 .side-handle svg.ic { width: 12px; height: 12px; stroke-width: 2.3; transition: transform .26s cubic-bezier(.2, .8, .2, 1); }
 #side.collapsed .side-handle svg.ic { transform: rotate(180deg); }
+/* bord gauche du panneau : on le saisit et on le tire pour élargir ou rétracter */
+.side-resizer { position: absolute; z-index: 5; left: 0; top: 0; bottom: 0; width: 8px; cursor: var(--cur-ew, ew-resize); touch-action: none; outline: none; }
+.side-resizer::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--accent); opacity: 0; transition: opacity .15s; }
+.side-resizer:hover::after, .side-resizer:focus-visible::after, body.side-resizing .side-resizer::after { opacity: .6; }
+.side-handle { cursor: var(--cur-ew, ew-resize); }
+body.side-resizing, body.side-resizing * { cursor: var(--cur-ew, ew-resize) !important; user-select: none !important; -webkit-user-select: none !important; }
+body.side-dragging #side { transition: none; }
 @media (prefers-reduced-motion: reduce) { #side, #sidetabs, #sidebody, #siderail, .side-handle svg.ic { transition: none; } }
 
 /* ---------- Barre d'outils : groupes en capsules ---------- */

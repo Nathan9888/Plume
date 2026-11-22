@@ -5,7 +5,7 @@ vos documents restent sur votre ordinateur (fichiers `.plume`).
 
 ## Obtenir l'application (.exe)
 
-Il existe deux façons. Dans les deux cas, vous obtenez un installateur `Plume Setup 1.4.2.exe`.
+Il existe deux façons. Dans les deux cas, vous obtenez un installateur `Plume Setup 1.4.3.exe`.
 
 ### Option A — Sur votre PC (si vous pouvez installer des logiciels)
 
@@ -18,7 +18,7 @@ npm start          :: pour essayer l'application tout de suite
 npm run dist       :: pour fabriquer l'installateur
 ```
 
-3. L'installateur se trouve dans `dist\Plume Setup 1.4.2.exe`. Double-cliquez pour l'installer.
+3. L'installateur se trouve dans `dist\Plume Setup 1.4.3.exe`. Double-cliquez pour l'installer.
 
 ### Option B — Sans rien installer (GitHub Actions)
 
@@ -105,7 +105,7 @@ abonnement ni serveur : l'IA est **désactivée par défaut**, et rien n'est env
   dans le panneau Suggestions), Copier, Réessayer, et un champ pour préciser (« plus court… »). Tout est annulable avec `Ctrl+Z`.
 - *Demander à l'IA* (`Ctrl+Alt+J`, ou `/` → IA) : rédige un texte à partir d'une consigne, en tenant compte du début du document ; continuer l'écriture, générer un plan.
 - *Panneau Assistant* (bouton ✦ en haut à droite) : écran d'accueil avec pastilles d'actions (résumer, idées, plan, relecture… et « Plus »), choix du modèle en haut, champ de saisie arrondi, menu « + » pour les outils. La conversation connaît le document ; une pastille affiche la sélection transmise (retirable avec ×). Chaque réponse peut être insérée ou remplacer la sélection.
-  Le panneau latéral (commentaires, suggestions, versions, variables, IA) est **rétractable** : la poignée au milieu de son bord gauche le réduit en un rail d'icônes (avec les compteurs de commentaires et de suggestions) pour laisser toute la place au document ; une icône du rail ou la poignée le redéploie. Le bouton ✕ le ferme complètement.
+  Le panneau latéral (commentaires, suggestions, versions, variables, IA) est **rétractable** : la poignée au milieu de son bord gauche le réduit en un rail d'icônes (avec les compteurs de commentaires et de suggestions) pour laisser toute la place au document ; une icône du rail ou la poignée le redéploie. Le bouton ✕ le ferme complètement. On peut aussi **saisir son bord gauche à la souris** : tiré vers la gauche, il s'élargit (jusqu'à 760 px, en laissant toujours 420 px au document) ; tiré vers la droite sous 280 px, il se rétracte en rail ; depuis le rail, tiré vers la gauche, il se redéploie. Un double-clic sur le bord bascule aussi, les flèches ←/→ ajustent la largeur au clavier, et la largeur choisie est mémorisée.
 - *Relecture* (Outils → Assistant IA, ou la carte d'orthographe) : fautes et tournures maladroites listées une à une, avec **Appliquer / Ignorer / Tout appliquer**.
 - *Orthographe* : la pastille d'un mot fautif propose « Corriger la phrase avec l'IA ».
 - **Confidentialité** : seul le texte concerné (sélection ; document entier pour le panneau et la relecture) et votre consigne partent vers `api.anthropic.com` ;
