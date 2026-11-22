@@ -5,7 +5,7 @@ vos documents restent sur votre ordinateur (fichiers `.plume`).
 
 ## Obtenir l'application (.exe)
 
-Il existe deux façons. Dans les deux cas, vous obtenez un installateur `Plume Setup 1.4.3.exe`.
+Il existe deux façons. Dans les deux cas, vous obtenez un installateur `Plume Setup 1.5.0.exe`.
 
 ### Option A — Sur votre PC (si vous pouvez installer des logiciels)
 
@@ -18,7 +18,7 @@ npm start          :: pour essayer l'application tout de suite
 npm run dist       :: pour fabriquer l'installateur
 ```
 
-3. L'installateur se trouve dans `dist\Plume Setup 1.4.3.exe`. Double-cliquez pour l'installer.
+3. L'installateur se trouve dans `dist\Plume Setup 1.5.0.exe`. Double-cliquez pour l'installer.
 
 ### Option B — Sans rien installer (GitHub Actions)
 
@@ -97,7 +97,7 @@ redimensionnements horizontal, vertical et diagonaux), identiques dans l'applica
 **Paramètres → Apparence → Curseur** : activer/désactiver, **taille** (20 à 64 px) et **couleur** (noir, blanc, couleur d'accent, bleu, rouge,
 orange, vert, violet, rose, graphite), avec aperçu en direct des neuf curseurs.
 
-**Assistant IA (facultatif)** — l'IA est présente un peu partout dans l'éditeur, avec **votre propre clé API Claude** (Anthropic). Plume n'a ni
+**Assistant IA (facultatif)** — l'IA est présente un peu partout dans l'éditeur, avec **votre propre clé API**, au choix **Claude** (Anthropic, payant à l'usage) ou **Google Gemini** (clé gratuite créée dans Google AI Studio, avec des limites d'usage). Plume n'a ni
 abonnement ni serveur : l'IA est **désactivée par défaut**, et rien n'est envoyé tant que vous ne lancez pas une action.
 - *Sur la sélection* (pastille ✦, clic droit → Assistant IA, ou Outils → Assistant IA) : améliorer l'écriture, corriger, reformuler (professionnel,
   chaleureux, concis, simple), raccourcir, développer, traduire (6 langues), résumer, expliquer, idées pour continuer, titres possibles.
@@ -111,8 +111,8 @@ abonnement ni serveur : l'IA est **désactivée par défaut**, et rien n'est env
 - **Confidentialité** : seul le texte concerné (sélection ; document entier pour le panneau et la relecture) et votre consigne partent vers `api.anthropic.com` ;
   jamais votre nom ni autre chose. Avant l'envoi, Plume **détecte les données sensibles** (carte, NAS, IBAN…) et demande confirmation, et **refuse** par défaut les
   documents chiffrés. Dans l'application Windows, la clé est chiffrée par le coffre du système (`safeStorage`) et reste dans le processus principal ; la page n'a toujours
-  aucun accès réseau. Dans `Plume.html`, la clé est conservée dans le stockage local du navigateur (sans coffre) et la page n'a le droit de contacter que `api.anthropic.com`.
-  Réglages : Paramètres → Intelligence artificielle (clé, modèle Sonnet / Haiku / Opus, vérifications).
+  aucun accès réseau. Dans `Plume.html`, la clé est conservée dans le stockage local du navigateur (sans coffre) et la page n'a le droit de contacter que `api.anthropic.com` et `generativelanguage.googleapis.com`.
+  Réglages : Paramètres → Intelligence artificielle (fournisseur, clé, modèle, vérifications). Chaque fournisseur a sa propre clé, enregistrée séparément ; le menu du panneau Assistant liste les modèles des deux. **Clé Google gratuite : d'après Google, le contenu envoyé peut alors servir à améliorer ses produits (ce n'est pas le cas avec un compte payant) — Plume l'indique dans les réglages et demande une confirmation la première fois ; évitez d'y envoyer des informations confidentielles.** Les limites gratuites sont fixées par Google et peuvent changer.
 
 **Menus déroulants façon macOS** — les listes (zoom, style de paragraphe, police, réglages, tri de l'accueil…) et la palette de couleurs
 (couleur du texte, surlignage) n'utilisent plus les menus du navigateur : même verre dépoli, coins arrondis, coche devant la valeur

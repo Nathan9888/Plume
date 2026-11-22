@@ -1,7 +1,7 @@
-/* Plume — assistant IA : noyau (consignes, appel à l'API Claude, protection des données, insertion du résultat dans le document).
+/* Plume — assistant IA : noyau (consignes, appel à l'API Claude ou Google Gemini, protection des données, insertion du résultat dans le document).
    L'IA est désactivée tant que l'utilisateur ne l'a pas activée et n'a pas saisi sa propre clé API. Rien n'est envoyé sans une action
    explicite. Ne partent que : la consigne et le texte concerné (sélection, ou document pour l'assistant et la relecture), vers
-   api.anthropic.com — jamais le nom de l'utilisateur ni une autre donnée. L'interface (carte, panneau, menus) est dans ai-ui.js. */
+   api.anthropic.com (Claude) ou generativelanguage.googleapis.com (Gemini) — jamais le nom de l'utilisateur ni une autre donnée. L'interface (carte, panneau, menus) est dans ai-ui.js. */
 (function () {
   'use strict';
   const { h } = P;
@@ -10,11 +10,35 @@
   const ed = P.editor;
   const nat = () => (typeof native !== 'undefined' ? native : null);
 
-  const MODELS = [
-    ['claude-sonnet-5-5', 'Claude Sonnet 5.5 : équilibré (recommandé)'],
-    ['claude-haiku-5-5', 'Claude Haiku 5.5 : rapide et économique'],
-    ['claude-opus-5-5', 'Claude Opus 5.5 : le plus puissant'],
-  ];
+  /** Fournisseurs d'IA : chacun a sa clé (jamais partagée), ses modèles et son réglage de modèle. */
+  const PROVIDERS = {
+    claude: {
+      id: 'claude', name: 'Claude', maker: 'Anthropic', host: 'api.anthropic.com', modelKey: 'aiModel',
+      models: [
+        ['claude-sonnet-5-5', 'Claude Sonnet 5.5 : équilibré (recommandé)'],
+        ['claude-haiku-5-5', 'Claude Haiku 5.5 : rapide et économique'],
+        ['claude-opus-5-5', 'Claude Opus 5.5 : le plus puissant'],
+      ],
+    },
+    gemini: {
+      id: 'gemini', name: 'Google Gemini', maker: 'Google', host: 'generativelanguage.googleapis.com', modelKey: 'aiModelGemini',
+      models: [
+        ['gemini-3.5-flash', 'Gemini 3.5 Flash : rapide et récent (recommandé)'],
+        ['gemini-2.5-flash', 'Gemini 2.5 Flash : rapide et éprouvé'],
+        ['gemini-3.1-flash-lite', 'Gemini 3.1 Flash-Lite : le plus léger'],
+        ['gemini-2.5-pro', 'Gemini 2.5 Pro : le plus capable, plus lent'],
+      ],
+    },
+  };
+  const provider = () => (S.get('aiProvider') === 'gemini' ? 'gemini' : 'claude');
+  const modelOf = (p) => S.get(PROVIDERS[p || provider()].modelKey);
+  /** Nom court du modèle actif, pour la pastille du panneau (« Sonnet 5.5 », « Gemini 3.5 Flash »). */
+  const modelName = () => {
+    const p = provider();
+    const m = PROVIDERS[p].models.find((x) => x[0] === modelOf(p));
+    const name = m ? m[1].split(' : ')[0] : PROVIDERS[p].name;
+    return p === 'claude' ? name.replace(/^Claude\s+/, '') : name;
+  };
 
   const SYSTEM = [
     'Tu es l’assistant d’écriture intégré à Plume, un traitement de texte.',
@@ -143,15 +167,23 @@
 
   /** Vérifie que l'IA peut être utilisée et que l'utilisateur sait ce qui part. texts : tout ce qui sera envoyé. */
   async function gate(texts) {
+    const pv = provider();
     if (!S.get('aiOn')) {
-      return notReady('Activer l’assistant IA ?', 'L’IA de Plume passe par l’API de Claude avec votre propre clé : elle est désactivée tant que vous ne l’avez pas activée. Rien n’est envoyé sans une action de votre part, et jamais votre nom.');
+      return notReady('Activer l’assistant IA ?', 'L’IA de Plume passe par ' + (pv === 'gemini' ? 'l’API de Google Gemini' : 'l’API de Claude') + ' avec votre propre clé : elle est désactivée tant que vous ne l’avez pas activée. Rien n’est envoyé sans une action de votre part, et jamais votre nom.');
     }
     const n = nat();
     let st = null;
-    try { st = n && n.ai ? await n.ai.status() : null; } catch (_) { st = null; }
+    try { st = n && n.ai ? await n.ai.status(pv) : null; } catch (_) { st = null; }
     if (!st) { P.toast('L’IA n’est pas disponible dans cet environnement.'); return false; }
     if (!st.hasKey) {
-      return notReady('Ajoutez votre clé API', 'Il manque votre clé API Claude. Ajoutez-la dans Paramètres → Intelligence artificielle (elle reste sur cet ordinateur).');
+      return notReady('Ajoutez votre clé API', pv === 'gemini'
+        ? 'Il manque votre clé Google. Elle est gratuite : créez-la dans Google AI Studio, puis ajoutez-la dans Paramètres → Intelligence artificielle.'
+        : 'Il manque votre clé API Claude. Ajoutez-la dans Paramètres → Intelligence artificielle (elle reste sur cet ordinateur).');
+    }
+    if (pv === 'gemini' && !S.get('aiGeminiOk')) {
+      const r = await P.modal({ title: 'À savoir sur la clé Google gratuite', message: 'D’après Google, avec une clé gratuite (palier gratuit de l’API Gemini), le contenu envoyé peut servir à améliorer ses produits ; ce n’est pas le cas avec un compte payant. N’envoyez donc pas de contenu confidentiel ou privé avec ce fournisseur. Les limites d’usage gratuites sont fixées par Google et peuvent changer.', ok: 'Compris, continuer' });
+      if (!r) return false;
+      S.set('aiGeminiOk', true);
     }
     if (S.get('aiNoEncrypted') && state.password) {
       const r = await P.modal({ title: 'Document chiffré', message: 'Ce document est protégé par un mot de passe. Par prudence, Plume n’envoie pas son contenu à l’IA. Vous pouvez changer ce choix dans Paramètres → Intelligence artificielle.',
@@ -180,7 +212,7 @@
     const id = 'r' + Math.random().toString(36).slice(2) + Date.now().toString(36);
     let text = '';
     const n = nat();
-    const promise = Promise.resolve(n.ai.complete({ id, model: S.get('aiModel'), system: o.system || SYSTEM, messages: o.messages, maxTokens: o.maxTokens },
+    const promise = Promise.resolve(n.ai.complete({ id, provider: provider(), model: modelOf(), system: o.system || SYSTEM, messages: o.messages, maxTokens: o.maxTokens },
       (c) => { text += c; if (o.onChunk) o.onChunk(text); }))
       .then((r) => (r && r.error ? { error: r.error } : { text: (r && r.text) || text, cancelled: !!(r && r.cancelled) }))
       .catch((e) => ({ error: 'Erreur : ' + (e && e.message ? e.message : e) }));
@@ -288,7 +320,7 @@
   }
 
   P.ai = {
-    MODELS, TASKS, SYSTEM, LANGS,
+    PROVIDERS, provider, modelOf, modelName, TASKS, SYSTEM, LANGS,
     enabled: () => !!S.get('aiOn'),
     docText, plainOf, selection, contextBefore, mdToHtml, stripMd, needsBlocks, cleanOutput,
     gate, complete, buildMessages,

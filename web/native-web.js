@@ -309,13 +309,18 @@
     setSpellLangs: async () => true,
     editCmd,
     spell: { check: () => ({ bad: false, suggestions: [] }), add: async () => true },   // le correcteur du navigateur souligne les fautes
-    // IA : appel direct à l'API Claude avec la clé de l'utilisateur. Dans un navigateur, la clé est conservée dans le stockage local
-    // de cette page (pas de coffre sécurisé) ; l'application Windows la protège avec le coffre du système.
+    // IA : appel direct à l'API Claude ou à l'API Google Gemini avec la clé de l'utilisateur. Dans un navigateur, les clés sont conservées
+    // dans le stockage local de cette page (pas de coffre sécurisé) ; l'application Windows les protège avec le coffre du système.
     ai: (() => {
-      const KEY = 'plume.ai.key';
-      const MODELS = ['claude-sonnet-5-5', 'claude-haiku-5-5', 'claude-opus-5-5'];
+      const KEYS = { claude: 'plume.ai.key', gemini: 'plume.ai.key.gemini' };
+      const MODELS = {
+        claude: ['claude-sonnet-5-5', 'claude-haiku-5-5', 'claude-opus-5-5'],
+        gemini: ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-pro'],
+      };
+      const KEY_RE = { claude: /^sk-ant-[A-Za-z0-9_-]{20,}$/, gemini: /^[A-Za-z0-9_.-]{20,256}$/ };
+      const prov = (p) => (p === 'gemini' ? 'gemini' : 'claude');
       const runs = new Map();
-      const read = () => { try { return localStorage.getItem(KEY) || ''; } catch (_) { return ''; } };
+      const read = (p) => { try { return localStorage.getItem(KEYS[prov(p)]) || ''; } catch (_) { return ''; } };
       const errText = (status, body) => {
         let msg = '';
         try { const j = JSON.parse(body); msg = j && j.error && j.error.message ? j.error.message : ''; } catch (_) { /* pas du JSON */ }
@@ -326,58 +331,141 @@
         if (/credit balance/i.test(msg)) return 'Le solde de crédits de votre compte API est insuffisant.';
         return 'Erreur du service (' + status + ')' + (msg ? ' : ' + msg : '.');
       };
+      const geminiErrText = (status, body) => {
+        let msg = '', st = '';
+        try {
+          const j = JSON.parse(body);
+          const e = (j && j.error) || (Array.isArray(j) && j[0] && j[0].error) || {};
+          msg = e.message || ''; st = e.status || '';
+        } catch (_) { /* pas du JSON */ }
+        const all = msg + ' ' + st;
+        if (/API key not valid|API_KEY_INVALID|API key expired|API key.*(not found|invalid)/i.test(all) || status === 401) return 'La clé Google a été refusée. Vérifiez-la dans Paramètres → Intelligence artificielle (elle se crée dans Google AI Studio).';
+        if (/location is not supported|not available in your country/i.test(all)) return 'Le service Gemini n’est pas offert depuis votre région (' + (msg || status) + ').';
+        if (status === 403 || st === 'PERMISSION_DENIED') return 'Accès refusé par Google (403). ' + msg;
+        if (status === 404 || st === 'NOT_FOUND') return 'Ce modèle n’est pas (ou plus) disponible chez Google. Choisissez-en un autre dans Paramètres → Intelligence artificielle.';
+        if (status === 429 || st === 'RESOURCE_EXHAUSTED') return 'Limite gratuite de Google atteinte (429) : trop de demandes ou quota du jour épuisé. Patientez un moment ou choisissez un autre modèle.';
+        if (status === 500 || status === 503 || st === 'UNAVAILABLE' || st === 'INTERNAL') return 'Le service de Google est momentanément surchargé. Réessayez dans un instant.';
+        return 'Erreur du service Google (' + status + ')' + (msg ? ' : ' + msg : '.');
+      };
+      // Réflexion de Gemini : coupée (ou minimale) quand le modèle l'accepte ; si le modèle refuse ce réglage, la requête est refaite sans lui.
+      const thinking = (model) => (/^gemini-2\.5-flash(-lite)?$/.test(model) ? { thinkingBudget: 0 } : /^gemini-3/.test(model) ? { thinkingLevel: 'minimal' } : null);
+      const geminiBody = (system, messages, maxTokens, think) => {
+        const contents = [];
+        for (const m of messages) {                                  // Gemini veut des tours qui alternent : on fusionne les messages de même rôle
+          const role = m.role === 'assistant' ? 'model' : 'user';
+          const last = contents[contents.length - 1];
+          if (last && last.role === role) last.parts[0].text += '\n\n' + m.content;
+          else contents.push({ role, parts: [{ text: m.content }] });
+        }
+        const body = { contents, generationConfig: { maxOutputTokens: Math.min(65536, maxTokens + (think ? 4096 : 16384)) } };
+        if (system) body.systemInstruction = { parts: [{ text: system }] };
+        if (think) body.generationConfig.thinkingConfig = think;
+        return body;
+      };
+      // Lit un flux « server-sent events » ; onData reçoit chaque objet JSON et peut renvoyer une valeur pour tout arrêter.
+      const readSse = async (res, onData) => {
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        let buf = '';
+        const feed = (line) => {
+          line = line.trim();
+          if (!line.startsWith('data:')) return null;
+          let ev;
+          try { ev = JSON.parse(line.slice(5)); } catch (_) { return null; }
+          return onData(ev);
+        };
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          let i;
+          while ((i = buf.indexOf('\n')) >= 0) {
+            const line = buf.slice(0, i);
+            buf = buf.slice(i + 1);
+            const r = feed(line);
+            if (r) return r;
+          }
+        }
+        return buf ? feed(buf) : null;
+      };
       return {
-        status: async () => ({ hasKey: !!read(), secure: false, where: 'browser' }),
-        setKey: async (key) => {
+        status: async (p) => ({ hasKey: !!read(p), secure: false, where: 'browser' }),
+        setKey: async (key, p) => {
+          p = prov(p);
           key = String(key || '').trim();
-          if (!/^sk-ant-[A-Za-z0-9_-]{20,}$/.test(key)) return { error: 'Cette clé ne ressemble pas à une clé API Claude (elle commence par « sk-ant- »).' };
-          try { localStorage.setItem(KEY, key); } catch (_) { return { error: 'Ce navigateur refuse de conserver la clé (stockage local bloqué).' }; }
+          if (!KEY_RE[p].test(key)) {
+            return { error: p === 'gemini'
+              ? 'Cette clé ne ressemble pas à une clé API Google (elle se crée dans Google AI Studio et commence en général par « AIza »).'
+              : 'Cette clé ne ressemble pas à une clé API Claude (elle commence par « sk-ant- »).' };
+          }
+          try { localStorage.setItem(KEYS[p], key); } catch (_) { return { error: 'Ce navigateur refuse de conserver la clé (stockage local bloqué).' }; }
           return { ok: true };
         },
-        clearKey: async () => { try { localStorage.removeItem(KEY); } catch (_) { /* ignoré */ } return { ok: true }; },
+        clearKey: async (p) => { try { localStorage.removeItem(KEYS[prov(p)]); } catch (_) { /* ignoré */ } return { ok: true }; },
         cancel: async (id) => { const c = runs.get(String(id)); if (c) c.abort(); return true; },
         complete: async (o, onChunk) => {
-          const key = read();
-          if (!key) return { error: 'Aucune clé API enregistrée. Ajoutez-la dans Paramètres → Intelligence artificielle.' };
+          const provider = prov(o && o.provider);
+          const key = read(provider);
+          if (!key) return { error: (provider === 'gemini' ? 'Aucune clé Google enregistrée.' : 'Aucune clé API enregistrée.') + ' Ajoutez-la dans Paramètres → Intelligence artificielle.' };
           const id = String((o && o.id) || Math.random().toString(36).slice(2));
-          const model = MODELS.includes(o && o.model) ? o.model : MODELS[0];
+          const model = MODELS[provider].includes(o && o.model) ? o.model : MODELS[provider][0];
           const messages = (Array.isArray(o && o.messages) ? o.messages : []).slice(-24)
             .map((m) => ({ role: m && m.role === 'assistant' ? 'assistant' : 'user', content: String((m && m.content) || '').slice(0, 240000) })).filter((m) => m.content);
+          while (messages.length && messages[0].role === 'assistant') messages.shift();   // la conversation doit commencer par l'utilisateur
           if (!messages.length) return { error: 'Requête vide.' };
+          const system = String((o && o.system) || '').slice(0, 60000);
+          const maxTokens = Math.max(16, Math.min(8192, (o && o.maxTokens) | 0 || 4096));
           const ctl = new AbortController();
           runs.set(id, ctl);
           const timer = setTimeout(() => ctl.abort(), 180000);
           let full = '';
+          const send = (text) => { full += text; if (typeof onChunk === 'function') onChunk(text); };
           try {
+            if (provider === 'gemini') {
+              const post = (think) => fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':streamGenerateContent?alt=sse', {
+                method: 'POST',
+                signal: ctl.signal,
+                headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
+                body: JSON.stringify(geminiBody(system, messages, maxTokens, think)),
+              });
+              const think = thinking(model);
+              let res = await post(think);
+              if (!res.ok) {
+                const t = await res.text();
+                if (res.status === 400 && think && /think/i.test(t)) res = await post(null);   // ce modèle refuse le réglage de réflexion
+                else return { error: geminiErrText(res.status, t) };
+                if (!res.ok) return { error: geminiErrText(res.status, await res.text()) };
+              }
+              let blocked = '', finish = '';
+              const err = await readSse(res, (ev) => {
+                if (ev.error) return { error: geminiErrText(ev.error.code | 0 || 500, JSON.stringify(ev)) };
+                if (ev.promptFeedback && ev.promptFeedback.blockReason) blocked = ev.promptFeedback.blockReason;
+                const c = ev.candidates && ev.candidates[0];
+                if (!c) return null;
+                for (const part of (c.content && c.content.parts) || []) if (part && typeof part.text === 'string' && part.text && !part.thought) send(part.text);
+                if (c.finishReason && c.finishReason !== 'STOP' && c.finishReason !== 'MAX_TOKENS') finish = c.finishReason;
+                return null;
+              });
+              if (err) return err;
+              if (!full) {
+                return { error: blocked ? 'Google a refusé de traiter ce texte (' + blocked + ').'
+                  : finish ? 'Google n’a pas pu produire de réponse (' + finish + ').' : 'Google n’a renvoyé aucune réponse. Réessayez.' };
+              }
+              return { ok: true, text: full };
+            }
             const res = await fetch('https://api.anthropic.com/v1/messages', {
               method: 'POST',
               signal: ctl.signal,
               headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-              body: JSON.stringify({ model, max_tokens: Math.max(16, Math.min(8192, (o && o.maxTokens) | 0 || 4096)), system: String((o && o.system) || '').slice(0, 60000), messages, stream: true }),
+              body: JSON.stringify({ model, max_tokens: maxTokens, system, messages, stream: true }),
             });
             if (!res.ok) return { error: errText(res.status, await res.text()) };
-            const reader = res.body.getReader();
-            const dec = new TextDecoder();
-            let buf = '';
-            for (;;) {
-              const { value, done } = await reader.read();
-              if (done) break;
-              buf += dec.decode(value, { stream: true });
-              let i;
-              while ((i = buf.indexOf('\n')) >= 0) {
-                const line = buf.slice(0, i).trim();
-                buf = buf.slice(i + 1);
-                if (!line.startsWith('data:')) continue;
-                let ev;
-                try { ev = JSON.parse(line.slice(5)); } catch (_) { continue; }
-                if (ev.type === 'content_block_delta' && ev.delta && ev.delta.type === 'text_delta' && ev.delta.text) {
-                  full += ev.delta.text;
-                  if (typeof onChunk === 'function') onChunk(ev.delta.text);
-                } else if (ev.type === 'error') {
-                  return { error: errText(ev.error && ev.error.type === 'overloaded_error' ? 529 : 500, JSON.stringify(ev)) };
-                }
-              }
-            }
+            const err = await readSse(res, (ev) => {
+              if (ev.type === 'content_block_delta' && ev.delta && ev.delta.type === 'text_delta' && ev.delta.text) send(ev.delta.text);
+              else if (ev.type === 'error') return { error: errText(ev.error && ev.error.type === 'overloaded_error' ? 529 : 500, JSON.stringify(ev)) };
+              return null;
+            });
+            if (err) return err;
             return { ok: true, text: full };
           } catch (err) {
             if (ctl.signal.aborted) return { cancelled: true, text: full };

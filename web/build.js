@@ -33,7 +33,7 @@ html = html.replace(/<script src="([^"]+)"><\/script>/g, (_m, f) => inlineScript
 const icon = fs.readFileSync(path.join(__dirname, 'favicon.png')).toString('base64');
 html = html.replace('<title>Plume</title>', () => '<title>Plume</title>\n  <link rel="icon" type="image/png" href="data:image/png;base64,' + icon + '">');
 
-const csp = "default-src 'none'; script-src " + hashes.join(' ') + "; style-src 'unsafe-inline'; img-src data: blob:; font-src 'none'; connect-src https://api.anthropic.com; form-action 'none'; base-uri 'none'";
+const csp = "default-src 'none'; script-src " + hashes.join(' ') + "; style-src 'unsafe-inline'; img-src data: blob:; font-src 'none'; connect-src https://api.anthropic.com https://generativelanguage.googleapis.com; form-action 'none'; base-uri 'none'";
 html = html.replace(/<meta http-equiv="Content-Security-Policy" content="[^"]*">/, () => '<meta http-equiv="Content-Security-Policy" content="' + csp + '">');
 if (!html.includes("script-src 'sha256-")) throw new Error('La politique de sécurité n’a pas été remplacée.');
 if (/<script src=|<link rel="stylesheet"/.test(html)) throw new Error('Une ressource externe est restée dans la page.');

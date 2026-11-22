@@ -40,8 +40,14 @@
     { key: 'selBar', section: 'edit', grp: 'Édition', type: 'toggle', def: true, label: 'Pastille d’actions sous la sélection',
       desc: 'Mise en forme rapide, commentaire et émoji juste sous le texte sélectionné.' },
     { key: 'aiOn', section: 'ai', hidden: true, type: 'toggle', def: false, label: 'Assistant IA' },
-    { key: 'aiModel', section: 'ai', grp: 'Modèle', type: 'select', def: 'claude-sonnet-5-5', label: 'Modèle de Claude',
+    { key: 'aiProvider', section: 'ai', hidden: true, type: 'select', def: 'claude', label: 'Fournisseur d’IA',
+      options: [['claude', 'Claude (Anthropic)'], ['gemini', 'Google Gemini']] },
+    { key: 'aiGeminiOk', section: 'ai', hidden: true, type: 'toggle', def: false, label: 'Palier gratuit de Google compris' },
+    { key: 'aiModel', section: 'ai', prov: 'claude', grp: 'Modèle', type: 'select', def: 'claude-sonnet-5-5', label: 'Modèle de Claude',
       options: [['claude-sonnet-5-5', 'Sonnet 5.5 : équilibré (recommandé)'], ['claude-haiku-5-5', 'Haiku 5.5 : rapide et économique'], ['claude-opus-5-5', 'Opus 5.5 : le plus puissant']] },
+    { key: 'aiModelGemini', section: 'ai', prov: 'gemini', grp: 'Modèle', type: 'select', def: 'gemini-3.5-flash', label: 'Modèle Gemini',
+      desc: 'Si un modèle n’est plus offert gratuitement ou est saturé, essayez-en un autre.',
+      options: [['gemini-3.5-flash', '3.5 Flash : rapide et récent (recommandé)'], ['gemini-2.5-flash', '2.5 Flash : rapide et éprouvé'], ['gemini-3.1-flash-lite', '3.1 Flash-Lite : le plus léger'], ['gemini-2.5-pro', '2.5 Pro : le plus capable, plus lent']] },
     { key: 'aiDlp', section: 'ai', grp: 'Confidentialité', type: 'toggle', def: true, label: 'Vérifier les données sensibles avant l’envoi',
       desc: 'Prévient si le texte contient un numéro de carte, un NAS, un IBAN… et demande confirmation avant de l’envoyer.' },
     { key: 'aiNoEncrypted', section: 'ai', grp: 'Confidentialité', type: 'toggle', def: true, label: 'Ne jamais envoyer un document chiffré',
@@ -291,31 +297,50 @@
     P.paintAvatars();
   };
 
-  /* ---------- Section « Intelligence artificielle » : activation, clé API, essai de connexion ---------- */
+  /* ---------- Section « Intelligence artificielle » : fournisseur, activation, clé API, essai de connexion ---------- */
   function aiTop(body) {
     const nt = nat();
-    body.append(h('p', { class: 'lead', text: 'Plume peut vous aider à écrire : corriger, reformuler, résumer, proposer des idées, répondre à vos questions sur le document. Cela passe par l’API de Claude (Anthropic) avec votre propre clé : Plume n’a ni abonnement ni serveur et ne garde aucun échange.' }));
+    const pv = S.aiProvider === 'gemini' ? 'gemini' : 'claude';
+    const gem = pv === 'gemini';
+    const svc = gem ? 'Google Gemini' : 'Claude';
+    const host = gem ? 'generativelanguage.googleapis.com' : 'api.anthropic.com';
+    body.append(h('p', { class: 'lead', text: 'Plume peut vous aider à écrire : corriger, reformuler, résumer, proposer des idées, répondre à vos questions sur le document. Cela passe par l’API de Claude (Anthropic) ou de Google Gemini, au choix, avec votre propre clé : Plume n’a ni abonnement ni serveur et ne garde aucun échange.' }));
+
+    const seg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Fournisseur d’IA' });
+    [['claude', 'Claude'], ['gemini', 'Google Gemini']].forEach(([v, text]) => {
+      const b = h('button', { type: 'button', 'aria-pressed': String(v === pv), onclick: () => { if (set('aiProvider', v)) renderSection('ai', body); } }, text);
+      b.dataset.v = v;
+      seg.append(b);
+    });
+    body.append(h('div', { class: 'set-cap', text: 'Fournisseur' }), h('div', { class: 'set-group' },
+      h('div', { class: 'set-row' }, h('div', { class: 'lbl' }, 'Service d’IA', h('span', { class: 'desc', text: gem ? 'Clé gratuite possible (Google AI Studio), avec des limites d’usage.' : 'Clé payante à l’usage (console Anthropic).' })), seg)));
+
+    if (gem) {
+      body.append(h('div', { class: 'ai-priv ai-warn' }, svgIcon('i-info'), h('div', {},
+        h('b', { text: 'À savoir sur la clé gratuite de Google' }),
+        h('p', { text: 'D’après Google, avec le palier gratuit, le contenu envoyé peut servir à améliorer ses produits ; ce n’est pas le cas avec un compte payant. Évitez d’y envoyer des informations confidentielles ou privées. Les limites d’usage gratuites (demandes par minute et par jour) sont fixées par Google, peuvent changer et peuvent être atteintes : un message vous l’indiquera.' }))));
+    }
     body.append(h('div', { class: 'ai-priv' }, svgIcon('i-shield'), h('div', {},
       h('b', { text: 'Ce qui est envoyé' }),
-      h('p', { text: 'Uniquement le texte concerné par l’action que vous lancez (la sélection ; le document entier pour le panneau Assistant et la relecture) et votre consigne, à api.anthropic.com. Jamais votre nom ni aucune autre donnée. Rien ne part tant que vous ne lancez pas une action d’IA.' }))));
+      h('p', { text: 'Uniquement le texte concerné par l’action que vous lancez (la sélection ; le document entier pour le panneau Assistant et la relecture) et votre consigne, à ' + host + '. Jamais votre nom ni aucune autre donnée. Rien ne part tant que vous ne lancez pas une action d’IA.' }))));
 
     const sw = h('button', { type: 'button', class: 'switch', role: 'switch', 'aria-label': 'Activer l’assistant IA' });
     bind(sw, 'aiOn', () => sw.setAttribute('aria-checked', String(!!S.aiOn)));
     sw.addEventListener('click', async () => {
       if (S.aiOn) { set('aiOn', false); return; }
-      const r = await P.modal({ title: 'Activer l’assistant IA ?', message: 'Quand vous lancerez une action d’IA (améliorer, corriger, résumer, Assistant…), le texte concerné et votre consigne seront envoyés à l’API de Claude (api.anthropic.com) avec votre clé. Votre nom n’est jamais envoyé. Vous pouvez la désactiver à tout moment.', ok: 'Activer' });
+      const r = await P.modal({ title: 'Activer l’assistant IA ?', message: 'Quand vous lancerez une action d’IA (améliorer, corriger, résumer, Assistant…), le texte concerné et votre consigne seront envoyés à l’API de ' + svc + ' (' + host + ') avec votre clé. Votre nom n’est jamais envoyé. Vous pouvez la désactiver à tout moment.', ok: 'Activer' });
       if (r) set('aiOn', true);
     });
 
     const state = h('span', { class: 'ai-keystate', role: 'status' });
-    const input = h('input', { type: 'password', placeholder: 'sk-ant-…', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Clé API Claude' });
+    const input = h('input', { type: 'password', placeholder: gem ? 'AIza…' : 'sk-ant-…', autocomplete: 'off', spellcheck: 'false', 'aria-label': gem ? 'Clé API Google' : 'Clé API Claude' });
     const del = h('button', { type: 'button', class: 'chipbtn', text: 'Supprimer', hidden: true });
     const save = h('button', { type: 'button', class: 'chipbtn', text: 'Enregistrer' });
     const test = h('button', { type: 'button', class: 'chipbtn', text: 'Tester la connexion' });
     const note = h('div', { class: 'ai-keynote' });
     const refresh = async () => {
       let st = null;
-      try { st = nt && nt.ai ? await nt.ai.status() : null; } catch (_) { st = null; }
+      try { st = nt && nt.ai ? await nt.ai.status(pv) : null; } catch (_) { st = null; }
       if (!st) { state.textContent = 'IA indisponible ici.'; return; }
       state.textContent = st.hasKey ? 'Clé enregistrée' + (st.where === 'app' ? ' (chiffrée par Windows)' : ' (dans ce navigateur)') : 'Aucune clé enregistrée';
       state.dataset.ok = st.hasKey ? '1' : '0';
@@ -325,7 +350,7 @@
       note.hidden = !note.textContent;
     };
     save.addEventListener('click', async () => {
-      const r = await nt.ai.setKey(input.value);
+      const r = await nt.ai.setKey(input.value, pv);
       if (r && r.error) { P.toast(r.error); return; }
       input.value = '';
       P.toast('Clé enregistrée.');
@@ -333,8 +358,8 @@
     });
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save.click(); } });
     del.addEventListener('click', async () => {
-      if (!(await P.confirm('Supprimer la clé API ?', 'La clé sera effacée de cet ordinateur. L’IA ne fonctionnera plus tant que vous n’en saisirez pas une autre.', 'Supprimer'))) return;
-      await nt.ai.clearKey();
+      if (!(await P.confirm('Supprimer la clé ' + (gem ? 'Google' : 'API') + ' ?', 'La clé sera effacée de cet ordinateur. ' + svc + ' ne fonctionnera plus tant que vous n’en saisirez pas une autre.', 'Supprimer'))) return;
+      await nt.ai.clearKey(pv);
       P.toast('Clé supprimée.');
       refresh();
     });
@@ -348,12 +373,16 @@
       P.toast(r.error ? r.error : 'Connexion réussie : la clé fonctionne.');
     });
 
+    const keyDesc = gem
+      ? 'Gratuite : créez-la dans Google AI Studio avec un compte Google. Elle n’est jamais affichée ni envoyée ailleurs qu’à Google.'
+      : 'Créez-la dans la console Anthropic (compte et crédits à vous). Elle n’est jamais affichée ni envoyée ailleurs qu’à Anthropic.';
+    const keyUrl = gem ? 'https://aistudio.google.com/apikey' : 'https://console.anthropic.com/settings/keys';
     body.append(h('div', { class: 'set-cap', text: 'Activation' }), h('div', { class: 'set-group' },
       h('div', { class: 'set-row' }, h('div', { class: 'lbl' }, 'Activer l’assistant IA', h('span', { class: 'desc', text: 'Désactivée par défaut. Active les actions d’IA dans tout l’éditeur.' })), sw),
-      h('div', { class: 'set-row stack' }, h('div', { class: 'lbl' }, 'Clé API Claude', h('span', { class: 'desc', text: 'Créez-la dans la console Anthropic (compte et crédits à vous). Elle n’est jamais affichée ni envoyée ailleurs qu’à Anthropic.' })),
+      h('div', { class: 'set-row stack' }, h('div', { class: 'lbl' }, gem ? 'Clé API Google (gratuite)' : 'Clé API Claude', h('span', { class: 'desc', text: keyDesc })),
         h('div', { class: 'ai-key' }, input, save, del),
         h('div', { class: 'ai-keyrow' }, state, test,
-          h('button', { type: 'button', class: 'chipbtn', text: 'Obtenir une clé', onclick: () => { try { nt.openExternal('url', 'https://console.anthropic.com/settings/keys'); } catch (_) { /* ignoré */ } } })),
+          h('button', { type: 'button', class: 'chipbtn', text: gem ? 'Obtenir une clé gratuite' : 'Obtenir une clé', onclick: () => { try { nt.openExternal('url', keyUrl); } catch (_) { /* ignoré */ } } })),
         note)));
     refresh();
   }
@@ -401,11 +430,11 @@
         h('div', {}, h('b', { text: 'Plume ' + (info.version || '') }),
           h('div', { class: 'muted', text: 'Traitement de texte local, simple et élégant.' }),
           h('div', { class: 'muted', text: [info.electron && 'Electron ' + info.electron, info.chrome && 'Chromium ' + info.chrome].filter(Boolean).join(' · ') }))));
-      body.append(h('p', { class: 'lead', text: 'Vos documents restent sur votre ordinateur (fichiers .plume). Plume n’envoie rien sur Internet, sauf si vous activez l’assistant IA (Paramètres → Intelligence artificielle) : seul le texte que vous soumettez à l’IA part alors vers l’API de Claude, avec votre propre clé.' }));
+      body.append(h('p', { class: 'lead', text: 'Vos documents restent sur votre ordinateur (fichiers .plume). Plume n’envoie rien sur Internet, sauf si vous activez l’assistant IA (Paramètres → Intelligence artificielle) : seul le texte que vous soumettez à l’IA part alors vers le service que vous avez choisi (Claude ou Google Gemini), avec votre propre clé.' }));
     } else {
       if (id === 'ai') aiTop(body);
       const groups = [];
-      SCHEMA.filter((d) => !d.hidden && d.section === id).forEach((d) => {
+      SCHEMA.filter((d) => !d.hidden && d.section === id && (!d.prov || d.prov === S.aiProvider)).forEach((d) => {
         let g = groups.find((x) => x.name === (d.grp || ''));
         if (!g) { g = { name: d.grp || '', box: h('div', { class: 'set-group' }) }; groups.push(g); }
         g.box.append(rowOf(d, 'set-row'));

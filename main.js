@@ -350,19 +350,29 @@ ipcMain.handle('edit:cmd', guard((_e, cmd) => {
   return true;
 }));
 
-// ---------- Intelligence artificielle (API Claude, avec la clé personnelle de l'utilisateur) ----------
-// La clé est chiffrée par le coffre de Windows (safeStorage) et ne revient jamais à l'interface. Les requêtes partent d'ici :
-// la page n'a pas le droit de se connecter à Internet (CSP). Seuls le texte et la consigne envoyés par l'interface sont transmis :
-// ni le nom de l'utilisateur, ni aucune autre donnée.
-const AI_MODELS = ['claude-sonnet-5-5', 'claude-haiku-5-5', 'claude-opus-5-5'];
+// ---------- Intelligence artificielle (API Claude ou API Google Gemini, avec la clé personnelle de l'utilisateur) ----------
+// Les clés sont chiffrées par le coffre de Windows (safeStorage) et ne reviennent jamais à l'interface. Les requêtes partent d'ici :
+// la page n'a pas le droit de se connecter à Internet (CSP). Seuls le texte et la consigne envoyés par l'interface sont transmis,
+// au fournisseur choisi : ni le nom de l'utilisateur, ni aucune autre donnée.
+const AI_MODELS = {
+  claude: ['claude-sonnet-5-5', 'claude-haiku-5-5', 'claude-opus-5-5'],
+  gemini: ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-pro'],
+};
+const AI_KEY_RE = { claude: /^sk-ant-[A-Za-z0-9_-]{20,}$/, gemini: /^[A-Za-z0-9_.-]{20,256}$/ };
+const AI_FIELD = { claude: 'key', gemini: 'gemini' };           // champ de ai.json (« key » : Claude, comme avant la 1.5)
 const AI_URL = 'https://api.anthropic.com/v1/messages';
+const GEMINI_URL = (model) => 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':streamGenerateContent?alt=sse';
+const aiProv = (p) => (p === 'gemini' ? 'gemini' : 'claude');
 const aiFile = () => path.join(app.getPath('userData'), 'ai.json');
 const aiRuns = new Map();
 
-function aiKey() {
+function aiStore() {
+  try { const o = JSON.parse(fs.readFileSync(aiFile(), 'utf8')); return o && typeof o === 'object' ? o : {}; } catch (_) { return {}; }
+}
+function aiKey(provider) {
   try {
-    const o = JSON.parse(fs.readFileSync(aiFile(), 'utf8'));
-    return o && o.key ? safeStorage.decryptString(Buffer.from(o.key, 'base64')) : null;
+    const v = aiStore()[AI_FIELD[aiProv(provider)]];
+    return v ? safeStorage.decryptString(Buffer.from(v, 'base64')) : null;
   } catch (_) { return null; }
 }
 
@@ -377,63 +387,160 @@ function aiErrorText(status, body) {
   return 'Erreur du service (' + status + ')' + (msg ? ' : ' + msg : '.');
 }
 
-ipcMain.handle('ai:status', guard(() => ({ hasKey: !!aiKey(), secure: safeStorage.isEncryptionAvailable(), where: 'app' })));
+function geminiErrorText(status, body) {
+  let msg = '', st = '';
+  try {
+    const j = JSON.parse(body);
+    const e = (j && j.error) || (Array.isArray(j) && j[0] && j[0].error) || {};
+    msg = e.message || ''; st = e.status || '';
+  } catch (_) { /* pas du JSON */ }
+  const all = msg + ' ' + st;
+  if (/API key not valid|API_KEY_INVALID|API key expired|API key.*(not found|invalid)/i.test(all) || status === 401) return 'La clé Google a été refusée. Vérifiez-la dans Paramètres → Intelligence artificielle (elle se crée dans Google AI Studio).';
+  if (/location is not supported|not available in your country/i.test(all)) return 'Le service Gemini n’est pas offert depuis votre région (' + (msg || status) + ').';
+  if (status === 403 || st === 'PERMISSION_DENIED') return 'Accès refusé par Google (403). ' + msg;
+  if (status === 404 || st === 'NOT_FOUND') return 'Ce modèle n’est pas (ou plus) disponible chez Google. Choisissez-en un autre dans Paramètres → Intelligence artificielle.';
+  if (status === 429 || st === 'RESOURCE_EXHAUSTED') return 'Limite gratuite de Google atteinte (429) : trop de demandes ou quota du jour épuisé. Patientez un moment ou choisissez un autre modèle.';
+  if (status === 500 || status === 503 || st === 'UNAVAILABLE' || st === 'INTERNAL') return 'Le service de Google est momentanément surchargé. Réessayez dans un instant.';
+  return 'Erreur du service Google (' + status + ')' + (msg ? ' : ' + msg : '.');
+}
 
-ipcMain.handle('ai:setKey', guard((_e, key) => {
-  key = String(key || '').trim();
-  if (!/^sk-ant-[A-Za-z0-9_-]{20,}$/.test(key)) return { error: 'Cette clé ne ressemble pas à une clé API Claude (elle commence par « sk-ant- »).' };
+// Réflexion de Gemini : coupée (ou minimale) pour les modèles qui l'acceptent, afin de répondre vite et de ne pas gaspiller de quota.
+// Si un modèle refuse ce réglage (erreur 400 qui parle de « thinking »), la requête est refaite sans lui.
+const geminiThinking = (model) => (/^gemini-2\.5-flash(-lite)?$/.test(model) ? { thinkingBudget: 0 } : /^gemini-3/.test(model) ? { thinkingLevel: 'minimal' } : null);
+
+function geminiBody(system, messages, maxTokens, think) {
+  const contents = [];
+  for (const m of messages) {                                      // Gemini veut des tours qui alternent : on fusionne les messages de même rôle
+    const role = m.role === 'assistant' ? 'model' : 'user';
+    const last = contents[contents.length - 1];
+    if (last && last.role === role) last.parts[0].text += '\n\n' + m.content;
+    else contents.push({ role, parts: [{ text: m.content }] });
+  }
+  const body = { contents, generationConfig: { maxOutputTokens: Math.min(65536, maxTokens + (think ? 4096 : 16384)) } };
+  if (system) body.systemInstruction = { parts: [{ text: system }] };
+  if (think) body.generationConfig.thinkingConfig = think;
+  return body;
+}
+
+/** Lit un flux « server-sent events » ; onData reçoit chaque objet JSON et peut renvoyer une valeur pour tout arrêter. */
+async function aiReadSse(res, onData) {
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  const feed = (line) => {
+    line = line.trim();
+    if (!line.startsWith('data:')) return null;
+    let ev;
+    try { ev = JSON.parse(line.slice(5)); } catch (_) { return null; }
+    return onData(ev);
+  };
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let i;
+    while ((i = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, i);
+      buf = buf.slice(i + 1);
+      const r = feed(line);
+      if (r) return r;
+    }
+  }
+  return buf ? feed(buf) : null;
+}
+
+ipcMain.handle('ai:status', guard((_e, p) => ({ hasKey: !!aiKey(p), secure: safeStorage.isEncryptionAvailable(), where: 'app' })));
+
+ipcMain.handle('ai:setKey', guard((_e, a) => {
+  const obj = a && typeof a === 'object';
+  const provider = aiProv(obj ? a.provider : 'claude');
+  const key = String(obj ? a.key : a || '').trim();
+  if (!AI_KEY_RE[provider].test(key)) {
+    return { error: provider === 'gemini'
+      ? 'Cette clé ne ressemble pas à une clé API Google (elle se crée dans Google AI Studio et commence en général par « AIza »).'
+      : 'Cette clé ne ressemble pas à une clé API Claude (elle commence par « sk-ant- »).' };
+  }
   if (!safeStorage.isEncryptionAvailable()) return { error: 'Le coffre sécurisé de Windows n’est pas disponible : la clé ne peut pas être enregistrée de façon sûre.' };
-  writeAtomic(aiFile(), JSON.stringify({ key: safeStorage.encryptString(key).toString('base64') }));
+  const o = aiStore();
+  o[AI_FIELD[provider]] = safeStorage.encryptString(key).toString('base64');
+  writeAtomic(aiFile(), JSON.stringify({ key: o.key, gemini: o.gemini }));
   return { ok: true };
 }));
 
-ipcMain.handle('ai:clearKey', guard(() => { try { fs.unlinkSync(aiFile()); } catch (_) { /* absente */ } return { ok: true }; }));
+ipcMain.handle('ai:clearKey', guard((_e, p) => {
+  const o = aiStore();
+  delete o[AI_FIELD[aiProv(p)]];
+  if (!o.key && !o.gemini) { try { fs.unlinkSync(aiFile()); } catch (_) { /* absente */ } }
+  else writeAtomic(aiFile(), JSON.stringify({ key: o.key, gemini: o.gemini }));
+  return { ok: true };
+}));
 
 ipcMain.handle('ai:cancel', guard((_e, id) => { const c = aiRuns.get(String(id)); if (c) c.abort(); return true; }));
 
 ipcMain.handle('ai:complete', guard(async (e, o) => {
   if (!win || e.sender !== win.webContents) return { error: 'Appel refusé.' };
-  const key = aiKey();
-  if (!key) return { error: 'Aucune clé API enregistrée. Ajoutez-la dans Paramètres → Intelligence artificielle.' };
+  const provider = aiProv(o && o.provider);
+  const key = aiKey(provider);
+  if (!key) return { error: (provider === 'gemini' ? 'Aucune clé Google enregistrée.' : 'Aucune clé API enregistrée.') + ' Ajoutez-la dans Paramètres → Intelligence artificielle.' };
   const id = String(o && o.id || '');
-  const model = AI_MODELS.includes(o && o.model) ? o.model : AI_MODELS[0];
+  const model = AI_MODELS[provider].includes(o && o.model) ? o.model : AI_MODELS[provider][0];
   const messages = (Array.isArray(o && o.messages) ? o.messages : []).slice(-24)
     .map((m) => ({ role: m && m.role === 'assistant' ? 'assistant' : 'user', content: String(m && m.content || '').slice(0, 240000) })).filter((m) => m.content);
+  while (messages.length && messages[0].role === 'assistant') messages.shift();    // la conversation doit commencer par l'utilisateur
   if (!messages.length) return { error: 'Requête vide.' };
+  const system = String(o.system || '').slice(0, 60000);
+  const maxTokens = Math.max(16, Math.min(8192, o.maxTokens | 0 || 4096));
   const ctl = new AbortController();
   aiRuns.set(id, ctl);
   const timer = setTimeout(() => ctl.abort(), 180000);
   let full = '';
+  const send = (text) => { full += text; if (!e.sender.isDestroyed()) e.sender.send('ai:chunk', { id, text }); };
   try {
+    if (provider === 'gemini') {
+      const post = (think) => net.fetch(GEMINI_URL(model), {
+        method: 'POST',
+        signal: ctl.signal,
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
+        body: JSON.stringify(geminiBody(system, messages, maxTokens, think)),
+      });
+      const think = geminiThinking(model);
+      let res = await post(think);
+      if (!res.ok) {
+        const t = await res.text();
+        if (res.status === 400 && think && /think/i.test(t)) { res = await post(null); }   // ce modèle refuse le réglage de réflexion
+        else return { error: geminiErrorText(res.status, t) };
+        if (!res.ok) return { error: geminiErrorText(res.status, await res.text()) };
+      }
+      let blocked = '', finish = '';
+      const err = await aiReadSse(res, (ev) => {
+        if (ev.error) return { error: geminiErrorText(ev.error.code | 0 || 500, JSON.stringify(ev)) };
+        if (ev.promptFeedback && ev.promptFeedback.blockReason) blocked = ev.promptFeedback.blockReason;
+        const c = ev.candidates && ev.candidates[0];
+        if (!c) return null;
+        for (const part of (c.content && c.content.parts) || []) if (part && typeof part.text === 'string' && part.text && !part.thought) send(part.text);
+        if (c.finishReason && c.finishReason !== 'STOP' && c.finishReason !== 'MAX_TOKENS') finish = c.finishReason;
+        return null;
+      });
+      if (err) return err;
+      if (!full) {
+        return { error: blocked ? 'Google a refusé de traiter ce texte (' + blocked + ').'
+          : finish ? 'Google n’a pas pu produire de réponse (' + finish + ').' : 'Google n’a renvoyé aucune réponse. Réessayez.' };
+      }
+      return { ok: true, text: full };
+    }
     const res = await net.fetch(AI_URL, {
       method: 'POST',
       signal: ctl.signal,
       headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model, max_tokens: Math.max(16, Math.min(8192, o.maxTokens | 0 || 4096)), system: String(o.system || '').slice(0, 60000), messages, stream: true }),
+      body: JSON.stringify({ model, max_tokens: maxTokens, system, messages, stream: true }),
     });
     if (!res.ok) return { error: aiErrorText(res.status, await res.text()) };
-    const reader = res.body.getReader();
-    const dec = new TextDecoder();
-    let buf = '';
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buf += dec.decode(value, { stream: true });
-      let i;
-      while ((i = buf.indexOf('\n')) >= 0) {
-        const line = buf.slice(0, i).trim();
-        buf = buf.slice(i + 1);
-        if (!line.startsWith('data:')) continue;
-        let ev;
-        try { ev = JSON.parse(line.slice(5)); } catch (_) { continue; }
-        if (ev.type === 'content_block_delta' && ev.delta && ev.delta.type === 'text_delta' && ev.delta.text) {
-          full += ev.delta.text;
-          if (!e.sender.isDestroyed()) e.sender.send('ai:chunk', { id, text: ev.delta.text });
-        } else if (ev.type === 'error') {
-          return { error: aiErrorText(ev.error && ev.error.type === 'overloaded_error' ? 529 : 500, JSON.stringify(ev)) };
-        }
-      }
-    }
+    const err = await aiReadSse(res, (ev) => {
+      if (ev.type === 'content_block_delta' && ev.delta && ev.delta.type === 'text_delta' && ev.delta.text) send(ev.delta.text);
+      else if (ev.type === 'error') return { error: aiErrorText(ev.error && ev.error.type === 'overloaded_error' ? 529 : 500, JSON.stringify(ev)) };
+      return null;
+    });
+    if (err) return err;
     return { ok: true, text: full };
   } catch (err) {
     if (ctl.signal.aborted) return { cancelled: true, text: full };

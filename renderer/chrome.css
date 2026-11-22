@@ -307,6 +307,7 @@ body.pageless #canvas { background: #fff; }
 .menu-item.hl .mi-desc, .menu-item:hover:not(:disabled) .mi-desc, .menu-item.hl .mi-hint, .menu-item:hover:not(:disabled) .mi-hint,
 .menu-item.hl .mi-sub, .menu-item:hover:not(:disabled) .mi-sub { color: inherit; opacity: .85; }
 .menu-sep { height: 1px; margin: 5px 8px; background: var(--sep); }
+.menu-cap { padding: 7px 12px 3px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); cursor: default; }
 
 /* ---------- Carte de profil (fenêtre contextuelle façon Centre de contrôle) ---------- */
 .pop-card { position: fixed; width: 372px; max-height: calc(100vh - 56px); overflow: auto; padding: 14px; border-radius: 16px; background: var(--glass); -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%);
@@ -684,6 +685,10 @@ select[aria-expanded="true"] { background-color: var(--btn-hover); }
 .ai-priv { display: flex; gap: 12px; margin: 4px 0 6px; padding: 12px 14px; border-radius: 12px; background: var(--accent-bg); }
 .ai-priv > svg.ic { width: 22px; height: 22px; color: var(--accent); margin-top: 1px; }
 .ai-priv p { margin: 3px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--text); }
+.ai-priv.ai-warn { background: color-mix(in srgb, #ff9f0a 15%, transparent); }
+.ai-priv.ai-warn > svg.ic { color: #c77700; }
+:root[data-theme="dark"] .ai-priv.ai-warn { background: rgba(255, 159, 10, .16); }
+:root[data-theme="dark"] .ai-priv.ai-warn > svg.ic { color: #ffb340; }
 .ai-key { display: flex; gap: 8px; align-items: center; width: 100%; margin-top: 8px; }
 .ai-key input { flex: 1; min-width: 0; }
 .ai-keyrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; width: 100%; margin-top: 8px; }

@@ -33,9 +33,9 @@ contextBridge.exposeInMainWorld('native', {
   },
   // IA : la clé reste dans le processus principal ; l'interface n'en reçoit jamais le contenu.
   ai: {
-    status: () => call('ai:status'),
-    setKey: (key) => call('ai:setKey', String(key || '')),
-    clearKey: () => call('ai:clearKey'),
+    status: (provider) => call('ai:status', String(provider || 'claude')),
+    setKey: (key, provider) => call('ai:setKey', { key: String(key || ''), provider: String(provider || 'claude') }),
+    clearKey: (provider) => call('ai:clearKey', String(provider || 'claude')),
     cancel: (id) => call('ai:cancel', String(id || '')),
     complete: async (opts, onChunk) => {
       const id = String((opts && opts.id) || Math.random().toString(36).slice(2));

@@ -24,6 +24,7 @@
       const lv = { el: h('div', { class: 'menu', role: 'menu' }), rows: [], hl: -1, child: null };
       for (const it of list) {
         if (it === '-') { lv.el.append(h('div', { class: 'menu-sep', role: 'separator' })); continue; }
+        if (it.caption) { lv.el.append(h('div', { class: 'menu-cap', role: 'presentation', text: it.caption })); continue; }
         const dis = !!val(it.disabled);
         const chk = !!val(it.checked);
         const hasSub = !!it.items;

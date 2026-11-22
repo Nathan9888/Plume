@@ -279,10 +279,7 @@
      ==================================================================================================================== */
   const chat = { root: null, msgs: [], running: null, history: [], sel: null };
 
-  const modelName = () => {
-    const m = A.MODELS.find((x) => x[0] === S.get('aiModel'));
-    return m ? m[1].split(' : ')[0].replace(/^Claude\s+/, '').trim() : 'Claude';
-  };
+  const modelName = () => A.modelName();
 
   /** Sélection du document retenue pour l'assistant (elle survit au passage du focus dans la zone de saisie). */
   function liveSel() {
@@ -345,17 +342,30 @@
     selX.addEventListener('click', () => { chat.sel = null; paintSel(); });
 
     modelBtn.addEventListener('click', () => {
-      const cur2 = S.get('aiModel');
-      P.menu.open([
-        ...A.MODELS.map(([id, label]) => {
+      const curP = A.provider();
+      const pick = async (pid, id) => {
+        S.set('aiProvider', pid);
+        S.set(A.PROVIDERS[pid].modelKey, id);
+        let st = null;
+        try { st = await native.ai.status(pid); } catch (_) { st = null; }
+        if (st && !st.hasKey) { P.toast(pid === 'gemini' ? 'Ajoutez votre clé Google (gratuite) pour utiliser Gemini.' : 'Ajoutez votre clé API Claude.'); S.openDialog('ai'); }
+      };
+      const groups = [];
+      for (const pid of Object.keys(A.PROVIDERS)) {
+        const pv = A.PROVIDERS[pid];
+        groups.push({ caption: pv.name });
+        for (const [id, label] of pv.models) {
           const [name, desc] = label.split(' : ');
-          return { label: name, desc: desc ? desc.charAt(0).toUpperCase() + desc.slice(1) : undefined, checked: cur2 === id, action: () => S.set('aiModel', id) };
-        }),
+          groups.push({ label: name, desc: desc ? desc.charAt(0).toUpperCase() + desc.slice(1) : undefined, checked: curP === pid && A.modelOf(pid) === id, action: () => pick(pid, id) });
+        }
+      }
+      P.menu.open([
+        ...groups,
         '-',
         { label: 'Paramètres de l’IA…', icon: 'i-settings', action: () => S.openDialog('ai') },
       ], { anchor: modelBtn, align: 'center' });
     });
-    S.onChange((k) => { if (k === 'aiModel' || k === '*') modelLab.textContent = modelName(); });
+    S.onChange((k) => { if (k === 'aiModel' || k === 'aiModelGemini' || k === 'aiProvider' || k === '*') modelLab.textContent = modelName(); });
 
     plusBtn.addEventListener('click', () => {
       P.menu.open([
