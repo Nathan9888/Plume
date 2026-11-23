@@ -28,32 +28,48 @@ select { -webkit-appearance: none; appearance: none; height: 24px; padding: 0 22
 select:hover { background-color: var(--btn-hover); }
 option { background: var(--surface); color: var(--text); }
 
-/* ---------- Barre d'onglets (zone de glissement de la fenêtre) ---------- */
+/* ---------- Barre d'onglets, au dessin des onglets de Chrome (zone de glissement de la fenêtre) ----------
+   Mesures relevées sur Google Docs et Figma installés : bande de 36 px, onglet de 30 px à coins hauts arrondis (8 px) et
+   raccords concaves (7 px) avec la barre du dessous, bouton « + » rond. */
 #tabstrip {
-  flex: none; display: flex; align-items: center;
-  height: env(titlebar-area-height, 40px); min-height: 36px;
-  /* à droite : la place que Windows réserve à Réduire / Agrandir / Fermer */
-  padding: 0 calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw)) 0 calc(env(titlebar-area-x, 0px) + 10px);
-  background: var(--frame); -webkit-app-region: drag; user-select: none; overflow: hidden;
+  --tab-r: 8px; --tab-flare: 7px;
+  flex: none; display: flex; align-items: flex-end;
+  height: env(titlebar-area-height, 36px); min-height: 34px;
+  /* à droite : la place que le système réserve à Réduire / Agrandir / Fermer */
+  padding: 0 calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw)) 0 calc(env(titlebar-area-x, 0px) + 11px);
+  background: var(--tabband); -webkit-app-region: drag; user-select: none; overflow: hidden;
 }
-#tabs { display: flex; align-items: center; gap: 4px; min-width: 0; height: 100%; }
+#tabstrip[data-view="home"] { --tab-on: var(--bg); }
+#tabs { display: flex; align-items: flex-end; gap: 0; min-width: 0; height: 100%; }
 .tab {
-  position: relative; display: flex; align-items: center; gap: 7px; flex: 0 1 200px; min-width: 0;
-  height: 28px; padding: 0 5px 0 10px; border: 0; border-radius: 7px; background: transparent; color: var(--muted);
-  font-size: 12.5px; text-align: left; transition: background .12s;
+  position: relative; display: flex; align-items: center; gap: 8px; flex: 0 1 220px; min-width: 38px;
+  height: 30px; padding: 0 8px 0 12px; border: 0; border-radius: var(--tab-r) var(--tab-r) 0 0; background: transparent; color: var(--muted);
+  font-size: 12px; text-align: left; transition: background .1s;
 }
-.tab:hover { background: var(--frame-hover); color: var(--text); }
-.tab.active { background: var(--tab-on); color: var(--text); box-shadow: 0 0 0 .5px rgba(0, 0, 0, .12), 0 1px 2px rgba(0, 0, 0, .12); }
-.tab-home { flex: none; width: 34px; justify-content: center; padding: 0; }
-.tab-ic { color: var(--accent); }
+/* trait de séparation entre onglets inactifs */
+.tab:not(.active):not(.tab-home)::before { content: ""; position: absolute; right: 0; top: 7px; bottom: 7px; width: 1px; background: var(--tabsep); pointer-events: none; }
+.tab:has(+ .tab.active)::before, .tab:has(+ .tab:hover)::before, .tab:not(.active):hover::before { visibility: hidden; }
+.tab:not(.active):hover { background: var(--tabhover); color: var(--text); }
+.tab.active { z-index: 2; background: var(--tab-on); color: var(--text); }
+/* raccords concaves de l'onglet actif avec la barre du dessous */
+.tab.active::before, .tab.active::after {
+  content: ""; position: absolute; bottom: 0; width: var(--tab-flare); height: var(--tab-flare); pointer-events: none;
+}
+.tab.active::before { right: 100%; background: radial-gradient(circle at 0 0, transparent calc(var(--tab-flare) - .5px), var(--tab-on) var(--tab-flare)); }
+.tab.active::after { left: 100%; background: radial-gradient(circle at 100% 0, transparent calc(var(--tab-flare) - .5px), var(--tab-on) var(--tab-flare)); }
+.tab-home { flex: none; width: 36px; min-width: 36px; justify-content: center; padding: 0; }
+.tab-home .brand-tile { width: 18px; height: 18px; border-radius: 5px; }
+.tab-home .brand-tile svg.ic { width: 12px; height: 12px; stroke-width: 2; }
+.tab-ic { color: var(--accent); flex: none; }
 .tab-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tab.active .tab-title { font-weight: 500; }
 .tab-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: none; }
-.tab-x { display: grid; place-items: center; flex: none; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: inherit; opacity: .7; }
-.tab-x:hover { background: var(--hover); opacity: 1; }
-.tab-x svg { width: 12px; height: 12px; stroke-width: 2; }
-#tab-new { flex: none; display: grid; place-items: center; width: 28px; height: 28px; margin-left: 2px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--muted); }
-#tab-new:hover { background: var(--frame-hover); color: var(--text); }
+.tab-x { display: grid; place-items: center; flex: none; width: 18px; height: 18px; margin-right: -2px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: inherit; opacity: 0; }
+.tab.active .tab-x, .tab:hover .tab-x { opacity: .75; }
+.tab-x:hover { background: var(--hover); opacity: 1 !important; }
+.tab-x svg { width: 11px; height: 11px; stroke-width: 2; }
+#tab-new { flex: none; align-self: center; display: grid; place-items: center; width: 28px; height: 28px; margin: 0 0 0 6px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--text); }
+#tab-new:hover { background: var(--tabhover); }
+#tab-new svg.ic { width: 14px; height: 14px; stroke-width: 1.8; }
 #drag-fill { flex: 1; height: 100%; min-width: 24px; }
 
 #views { flex: 1; min-height: 0; position: relative; background: var(--bg); }

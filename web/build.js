@@ -40,7 +40,7 @@ const makeCsp = (site) => "default-src 'none'; script-src " + hashes.join(' ') +
   + "; font-src 'none'; connect-src " + CONNECT + (site ? "; manifest-src 'self'; worker-src 'self'" : '') + "; form-action 'none'; base-uri 'none'";
 const CSP_RE = /<meta http-equiv="Content-Security-Policy" content="[^"]*">/;
 const withCsp = (h, site) => h.replace(CSP_RE, () => '<meta http-equiv="Content-Security-Policy" content="' + makeCsp(site) + '">');
-const SITE_HEAD = '\n  <meta name="theme-color" content="#ececef">\n  <link rel="manifest" href="manifest.webmanifest">\n  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">';
+const SITE_HEAD = '\n  <meta name="theme-color" content="#dfdfe3">\n  <link rel="manifest" href="manifest.webmanifest">\n  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">';
 const siteHtml = withCsp(html.replace(/(<link rel="icon"[^>]*>)/, (m) => m + SITE_HEAD), true);
 html = withCsp(html, false);
 for (const h of [html, siteHtml]) {

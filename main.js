@@ -101,8 +101,8 @@ function saveRecents(list) {
 }
 
 // ---------- État de la fenêtre (couleurs de la barre de titre) ----------
-const FRAME_H = 40;
-const defaultTheme = { color: '#ececef', symbol: '#1d1d1f', bg: '#f5f5f7' };
+const FRAME_H = 36;
+const defaultTheme = { color: '#dfdfe3', symbol: '#1d1d1f', bg: '#f5f5f7' };
 function loadTheme() {
   const t = readJson(userFile('window.json'), {});
   return {

@@ -109,7 +109,7 @@
     if (!n || !n.setTheme) return;
     const cs = getComputedStyle(root);
     const v = (name) => cs.getPropertyValue(name).trim();
-    try { n.setTheme({ color: v('--frame'), symbol: v('--overlay-symbol'), bg: v('--bg') }); } catch (_) { /* ignoré */ }
+    try { n.setTheme({ color: v('--tabband'), symbol: v('--overlay-symbol'), bg: v('--bg') }); } catch (_) { /* ignoré */ }
   }
 
   const APPLY = {

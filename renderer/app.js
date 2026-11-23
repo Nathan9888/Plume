@@ -102,6 +102,7 @@
     const box = $('#tabs');
     $$('.tab[data-id]', box).forEach((n) => n.remove());
     const home = $('#tab-home');
+    $('#tabstrip').dataset.view = activeId === 'home' ? 'home' : 'doc';
     home.classList.toggle('active', activeId === 'home');
     home.setAttribute('aria-selected', String(activeId === 'home'));
     tabs.forEach((t) => box.append(tabEl(t)));
