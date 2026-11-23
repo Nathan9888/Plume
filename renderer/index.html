@@ -95,9 +95,8 @@
 
   <!-- Barre d'onglets : les boutons Réduire / Agrandir / Fermer de Windows se placent à droite, dans cette même barre -->
   <header id="tabstrip">
-    <div id="tabs" role="tablist" aria-label="Documents ouverts">
-      <button type="button" class="tab tab-home active" id="tab-home" role="tab" title="Accueil" aria-label="Accueil"><span class="brand-tile"><svg class="ic"><use href="#i-feather"/></svg></span></button>
-    </div>
+    <button type="button" class="tab tab-home active" id="tab-home" role="tab" title="Accueil" aria-label="Accueil"><span class="tab-bg"></span><span class="brand-tile"><svg class="ic"><use href="#i-feather"/></svg></span></button>
+    <div id="tabs" role="tablist" aria-label="Documents ouverts"></div>
     <button type="button" id="tab-new" title="Nouveau document (Ctrl+T)" aria-label="Nouveau document"><svg class="ic"><use href="#i-plus"/></svg></button>
     <div id="drag-fill"></div>
   </header>

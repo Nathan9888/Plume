@@ -28,11 +28,13 @@ select { -webkit-appearance: none; appearance: none; height: 24px; padding: 0 22
 select:hover { background-color: var(--btn-hover); }
 option { background: var(--surface); color: var(--text); }
 
-/* ---------- Barre d'onglets, au dessin des onglets de Chrome (zone de glissement de la fenêtre) ----------
-   Mesures relevées sur Google Docs et Figma installés : bande de 36 px, onglet de 30 px à coins hauts arrondis (8 px) et
-   raccords concaves (7 px) avec la barre du dessous, bouton « + » rond. */
+/* ---------- Barre d'onglets, copie de celle de Google Docs installé (zone de glissement de la fenêtre) ----------
+   Mesures relevées image par image sur l'enregistrement de référence : bande de 36 px ; onglet Accueil épinglé (icône seule,
+   37 px) ; onglets de documents sans icône ni séparateur, 214 px de pas (corps de 208 px + 6 px d'écart) qui se partagent la
+   place puis rétrécissent ; corps de 30 px à coins hauts de 8 px et raccords concaves de 8 px avec la barre du dessous ;
+   survol = pastille arrondie de 24 px ; « × » rond de 14 px ; « + » rond de 24 px qui suit le dernier onglet. */
 #tabstrip {
-  --tab-r: 8px; --tab-flare: 7px;
+  --tab-r: 8px; --tab-flare: 8px; --tab-w: 214px; --tab-gap: 6px;
   flex: none; display: flex; align-items: flex-end;
   height: env(titlebar-area-height, 36px); min-height: 34px;
   /* à droite : la place que le système réserve à Réduire / Agrandir / Fermer */
@@ -40,37 +42,54 @@ option { background: var(--surface); color: var(--text); }
   background: var(--tabband); -webkit-app-region: drag; user-select: none; overflow: hidden;
 }
 #tabstrip[data-view="home"] { --tab-on: var(--bg); }
-#tabs { display: flex; align-items: flex-end; gap: 0; min-width: 0; height: 100%; }
-.tab {
-  position: relative; display: flex; align-items: center; gap: 8px; flex: 0 1 220px; min-width: 38px;
-  height: 30px; padding: 0 8px 0 12px; border: 0; border-radius: var(--tab-r) var(--tab-r) 0 0; background: transparent; color: var(--muted);
-  font-size: 12px; text-align: left; transition: background .1s;
+/* La liste déborde de 8 px de chaque côté pour que les raccords de l'onglet actif ne soient pas rognés. */
+#tabs {
+  display: flex; align-items: flex-end; flex: 0 1 auto; min-width: 0; height: 100%; padding: 0 8px; margin: 0 -8px;
+  overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
 }
-/* trait de séparation entre onglets inactifs */
-.tab:not(.active):not(.tab-home)::before { content: ""; position: absolute; right: 0; top: 7px; bottom: 7px; width: 1px; background: var(--tabsep); pointer-events: none; }
-.tab:has(+ .tab.active)::before, .tab:has(+ .tab:hover)::before, .tab:not(.active):hover::before { visibility: hidden; }
-.tab:not(.active):hover { background: var(--tabhover); color: var(--text); }
-.tab.active { z-index: 2; background: var(--tab-on); color: var(--text); }
+#tabs::-webkit-scrollbar { display: none; }
+.tab {
+  position: relative; display: flex; align-items: center; gap: 6px; width: var(--tab-w); flex: 0 1 auto; min-width: 76px;
+  height: 30px; padding: 0 calc(var(--tab-gap) + 8px) 6px 7px; border: 0; border-radius: 0; background: transparent;
+  color: color-mix(in srgb, var(--text) 90%, transparent); font-size: 11px; line-height: 1; text-align: left; font-family: inherit;
+}
+.tab.entering, .tab.closing { overflow: hidden; }
+.tab.closing { pointer-events: none; flex-shrink: 0; }
+.tab.active { z-index: 2; color: var(--text); }
+/* le corps visible de l'onglet : plein et raccordé quand il est actif, pastille flottante au survol */
+.tab-bg { position: absolute; left: 0; right: var(--tab-gap); top: 0; bottom: 0; border-radius: var(--tab-r) var(--tab-r) 0 0; pointer-events: none; }
+.tab:not(.active):hover .tab-bg { background: var(--tabhover); top: 0; bottom: 6px; border-radius: 12px; }
+.tab.active .tab-bg { background: var(--tab-on); }
 /* raccords concaves de l'onglet actif avec la barre du dessous */
-.tab.active::before, .tab.active::after {
+.tab.active .tab-bg::before, .tab.active .tab-bg::after {
   content: ""; position: absolute; bottom: 0; width: var(--tab-flare); height: var(--tab-flare); pointer-events: none;
 }
-.tab.active::before { right: 100%; background: radial-gradient(circle at 0 0, transparent calc(var(--tab-flare) - .5px), var(--tab-on) var(--tab-flare)); }
-.tab.active::after { left: 100%; background: radial-gradient(circle at 100% 0, transparent calc(var(--tab-flare) - .5px), var(--tab-on) var(--tab-flare)); }
-.tab-home { flex: none; width: 36px; min-width: 36px; justify-content: center; padding: 0; }
+.tab.active .tab-bg::before { right: 100%; background: radial-gradient(circle at 0 0, transparent calc(var(--tab-flare) - .5px), var(--tab-on) var(--tab-flare)); }
+.tab.active .tab-bg::after { left: 100%; background: radial-gradient(circle at 100% 0, transparent calc(var(--tab-flare) - .5px), var(--tab-on) var(--tab-flare)); }
+.tab > *:not(.tab-bg) { position: relative; }
+.tab-home { flex: none; width: 37px; min-width: 37px; margin-right: 5px; justify-content: center; padding: 0 0 6px; }
+.tab-home .tab-bg { right: 0; }
 .tab-home .brand-tile { width: 18px; height: 18px; border-radius: 5px; }
 .tab-home .brand-tile svg.ic { width: 12px; height: 12px; stroke-width: 2; }
-.tab-ic { color: var(--accent); flex: none; }
-.tab-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tab-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: none; }
-.tab-x { display: grid; place-items: center; flex: none; width: 18px; height: 18px; margin-right: -2px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: inherit; opacity: 0; }
-.tab.active .tab-x, .tab:hover .tab-x { opacity: .75; }
-.tab-x:hover { background: var(--hover); opacity: 1 !important; }
-.tab-x svg { width: 11px; height: 11px; stroke-width: 2; }
-#tab-new { flex: none; align-self: center; display: grid; place-items: center; width: 28px; height: 28px; margin: 0 0 0 6px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--text); }
-#tab-new:hover { background: var(--tabhover); }
-#tab-new svg.ic { width: 14px; height: 14px; stroke-width: 1.8; }
-#drag-fill { flex: 1; height: 100%; min-width: 24px; }
+.tab-ic { color: var(--muted); flex: none; width: 13px; height: 13px; }
+.tab-title { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; }
+/* le titre s'estompe au bord au lieu d'une ellipse, seulement quand il est trop long */
+.tab-title.fade { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 22px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 22px), transparent); }
+.tab-x { display: grid; place-items: center; flex: none; width: 14px; height: 14px; margin: -3px 0 0 0; padding: 0; border: 0; border-radius: 50%; background: transparent; color: inherit; }
+.tab-x:hover { background: var(--tabxhover); color: var(--text); }
+.tab-x svg { width: 15px; height: 15px; stroke-width: 1.9; }
+/* document modifié : un point à la place de la croix, la croix revient au survol */
+.tab-x .dot { display: none; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.tab.dirty .tab-x .dot { display: block; }
+.tab.dirty .tab-x svg { display: none; }
+.tab.dirty:hover .tab-x .dot, .tab.dirty .tab-x:hover .dot, .tab.dirty:focus-visible .tab-x .dot { display: none; }
+.tab.dirty:hover .tab-x svg, .tab.dirty .tab-x:hover svg, .tab.dirty:focus-visible .tab-x svg { display: block; }
+#tab-new { flex: none; align-self: flex-end; display: grid; place-items: center; width: 24px; height: 24px; margin: 0 0 6px 0; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--text); }
+#tab-new:hover { background: var(--tabxhover); }
+#tab-new svg.ic { width: 17px; height: 17px; stroke-width: 1.9; }
+#drag-fill { flex: 1 0 24px; height: 100%; min-width: 24px; }
+/* quand on ferme des onglets à la souris, leur largeur reste figée jusqu'à ce que le pointeur quitte la barre */
+.tabs-settle .tab { transition: width .15s cubic-bezier(.2, .8, .2, 1); }
 
 #views { flex: 1; min-height: 0; position: relative; background: var(--bg); }
 #home, #docview { position: absolute; inset: 0; }
@@ -218,7 +237,7 @@ body.side-dragging #side { transition: none; }
 #toolbar.expanded #tb-tools { flex-wrap: wrap; height: auto; overflow: visible; row-gap: 6px; }
 .grp { position: relative; display: flex; align-items: center; flex: none; gap: 1px; padding: 2px; height: 30px; border-radius: 8px; background: var(--ctl); }
 #toolbar button { display: inline-grid; place-items: center; min-width: 26px; height: 26px; padding: 0 3px; border: 0; border-radius: 6px; background: transparent; color: var(--text); }
-#toolbar button, .icon-btn, .mb-item, .tab, .flat { transition: background .12s, color .12s; }
+#toolbar button, .icon-btn, .mb-item, .flat { transition: background .12s, color .12s; }
 #toolbar button:hover, .colorbtn:hover { background: var(--hover); }
 #toolbar button:active { background: var(--ctl); }
 #toolbar button.on { background: var(--ctl-on); color: var(--accent); box-shadow: 0 0 0 .5px rgba(0, 0, 0, .1), 0 1px 2px rgba(0, 0, 0, .14); }

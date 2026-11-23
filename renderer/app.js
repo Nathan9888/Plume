@@ -80,41 +80,119 @@
 
   function tabTitle(t) { return src(t).title || 'Sans titre'; }
 
+  /* Barre d'onglets : les éléments sont conservés d'un affichage à l'autre (pour pouvoir s'animer), jamais reconstruits. */
+  const EASE = 'cubic-bezier(.1, .9, .2, 1)';
+  const DUR = 120;
+  const calm = () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const strip = $('#tabstrip');
+  const tabBox = $('#tabs');
+  const tabNode = (id) => tabBox.querySelector(`.tab[data-id="${CSS.escape(id)}"]:not(.closing)`);
+  const fadeTitle = (ti) => ti.classList.toggle('fade', ti.scrollWidth > ti.clientWidth + 1);
+  const titleRO = window.ResizeObserver ? new ResizeObserver((es) => es.forEach((e) => fadeTitle(e.target))) : null;
+
   function tabEl(t) {
-    const s = src(t);
-    const el = h('div', { class: 'tab' + (t.id === activeId ? ' active' : ''), role: 'tab', tabindex: '0', 'aria-selected': String(t.id === activeId),
-      title: tabTitle(t) + (s.path ? '\n' + s.path : ''),
+    const el = h('div', { class: 'tab', role: 'tab', tabindex: '0',
       onclick: () => activate(t.id),
-      onauxclick: (e) => { if (e.button === 1) { e.preventDefault(); closeTab(t.id); } },
+      onauxclick: (e) => { if (e.button === 1) { e.preventDefault(); closeTab(t.id, { mouse: true }); } },
       onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(t.id); } },
     },
-    P.svgIcon(s.password ? 'i-lock' : 'i-doc', 'sm'),
-    h('span', { class: 'tab-title', text: tabTitle(t) }),
-    s.dirty ? h('span', { class: 'tab-dot', title: 'Modifications non enregistrées' }) : null,
+    h('span', { class: 'tab-bg' }),
+    h('span', { class: 'tab-title' }),
     h('button', { type: 'button', class: 'tab-x', title: 'Fermer l’onglet (Ctrl+W)', 'aria-label': 'Fermer l’onglet', tabindex: '-1',
-      onclick: (e) => { e.stopPropagation(); closeTab(t.id); } }, P.svgIcon('i-close')));
+      onclick: (e) => { e.stopPropagation(); closeTab(t.id, { mouse: true }); } }, P.svgIcon('i-close'), h('span', { class: 'dot' })));
     el.dataset.id = t.id;
-    el.firstChild.setAttribute('class', 'ic sm tab-ic');
+    paintTab(el, t);
+    if (titleRO) titleRO.observe($('.tab-title', el));
     return el;
   }
 
-  function renderTabs() {
-    const box = $('#tabs');
-    $$('.tab[data-id]', box).forEach((n) => n.remove());
+  /** Met à jour un onglet existant sans le recréer (survol, animation et focus restent intacts). */
+  function paintTab(el, t) {
+    const s = src(t);
+    const act = t.id === activeId;
+    el.classList.toggle('active', act);
+    el.classList.toggle('dirty', !!s.dirty);
+    el.setAttribute('aria-selected', String(act));
+    const name = tabTitle(t);
+    const tip = name + (s.path ? '\n' + s.path : s.cloud ? '\nEn ligne' : '') + (s.dirty ? '\nModifications non enregistrées' : '');
+    if (el.title !== tip) el.title = tip;
+    const ti = $('.tab-title', el);
+    if (ti.textContent !== name) { ti.textContent = name; fadeTitle(ti); }
+    const lock = $('.tab-ic', el);
+    if (s.password && !lock) { const ic = P.svgIcon('i-lock', 'sm'); ic.setAttribute('class', 'ic sm tab-ic'); ti.before(ic); }
+    else if (!s.password && lock) lock.remove();
+  }
+
+  /** Ouverture : l'onglet grandit de 0 à sa largeur en 120 ms. */
+  function enterTab(el) {
+    if (calm() || !el.animate) return;
+    const cs = getComputedStyle(el);
+    const full = getComputedStyle(strip).getPropertyValue('--tab-w').trim() || '214px';
+    el.classList.add('entering');
+    const a = el.animate([{ width: '0px', minWidth: '0px' }, { width: full, minWidth: cs.minWidth }], { duration: DUR, easing: EASE });
+    const done = () => el.classList.remove('entering');
+    a.onfinish = done; a.oncancel = done;
+  }
+
+  /** Fermeture : l'onglet se replie jusqu'à 0, puis il est retiré. */
+  function exitTab(el) {
+    if (!el) return;
+    el.classList.add('closing');
+    el.setAttribute('aria-hidden', 'true');
+    if (calm() || !el.animate) { el.remove(); return; }
+    const w = el.getBoundingClientRect().width + 'px';
+    const a = el.animate([{ width: w, minWidth: w }, { width: '0px', minWidth: '0px' }], { duration: DUR, easing: EASE, fill: 'forwards' });
+    a.onfinish = () => el.remove();
+    setTimeout(() => el.remove(), DUR + 200);
+  }
+
+  /* Comme dans Chrome : quand on ferme des onglets à la souris, ceux qui restent gardent leur largeur
+     jusqu'à ce que le pointeur quitte la barre, pour pouvoir enchaîner les croix au même endroit. */
+  let frozen = false;
+  function freezeTabs() {
+    if (frozen) return;
+    frozen = true;
+    $$('.tab[data-id]:not(.closing)', tabBox).forEach((el) => {
+      el.style.width = el.getBoundingClientRect().width + 'px';
+      el.style.flexShrink = '0';
+      el.style.minWidth = '0';
+    });
+  }
+  function unfreezeTabs() {
+    if (!frozen) return;
+    frozen = false;
+    strip.classList.add('tabs-settle');
+    $$('.tab[data-id]', tabBox).forEach((el) => { el.style.width = ''; el.style.flexShrink = ''; el.style.minWidth = ''; });
+    setTimeout(() => strip.classList.remove('tabs-settle'), 260);
+  }
+  strip.addEventListener('mouseleave', unfreezeTabs);
+  window.addEventListener('blur', unfreezeTabs);
+
+  function renderTabs(entering) {
+    strip.dataset.view = activeId === 'home' ? 'home' : 'doc';
     const home = $('#tab-home');
-    $('#tabstrip').dataset.view = activeId === 'home' ? 'home' : 'doc';
     home.classList.toggle('active', activeId === 'home');
     home.setAttribute('aria-selected', String(activeId === 'home'));
-    tabs.forEach((t) => box.append(tabEl(t)));
-    const act = $('.tab.active', box);
+    let prev = null;
+    for (const t of tabs) {
+      let el = tabNode(t.id);
+      if (!el) {
+        unfreezeTabs();
+        el = tabEl(t);
+        tabBox.insertBefore(el, prev ? prev.nextSibling : tabBox.firstChild);
+        if (t.id === entering) enterTab(el);
+      } else paintTab(el, t);
+      prev = el;
+    }
+    $$('.tab[data-id]:not(.closing)', tabBox).forEach((el) => { if (!tabById(el.dataset.id)) el.remove(); });
+    const act = $('.tab.active', tabBox);
     if (act && act.scrollIntoView) act.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 
   function patchTab() {
     const t = current();
-    if (!t) return;
-    const old = $(`.tab[data-id="${CSS.escape(t.id)}"]`);
-    if (old) old.replaceWith(tabEl(t));
+    const el = t && tabNode(t.id);
+    if (el) paintTab(el, t);
   }
 
   function activate(id) {
@@ -158,7 +236,7 @@
       P.toast('Impossible d’ouvrir ce fichier : ' + (err && err.message ? err.message : err), 6000);
       return null;
     }
-    renderTabs();
+    renderTabs(t.id);
     ed.focus();
     return t;
   }
@@ -171,7 +249,7 @@
 
   const anyDirty = () => { captureActive(); return tabs.some((t) => t.st.dirty); };
 
-  async function closeTab(id) {
+  async function closeTab(id, opts) {
     const t = tabById(id);
     if (!t) return false;
     if (src(t).dirty) {
@@ -181,7 +259,10 @@
     const i = tabs.findIndex((x) => x.id === id);
     if (i < 0) return true;
     const wasActive = id === activeId;
+    const node = tabNode(id);
+    if (opts && opts.mouse) freezeTabs();      // largeurs figées tant que la souris reste dans la barre
     tabs.splice(i, 1);
+    exitTab(node);                             // se replie en 120 ms (avant que renderTabs ne le voie disparaître)
     if (wasActive) {
       activeId = '__closed__';
       const next = tabs[i] || tabs[i - 1];

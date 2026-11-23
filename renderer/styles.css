@@ -7,7 +7,8 @@
   --frame-hover: rgba(0, 0, 0, .06);
   --overlay-symbol: #1d1d1f; /* symboles Réduire / Agrandir / Fermer */
   --tabband: #dfdfe3;          /* bande de la barre d'onglets (plus foncée que la page, comme Chrome) */
-  --tabhover: rgba(255, 255, 255, .55);
+  --tabhover: rgba(255, 255, 255, .3);
+  --tabxhover: rgba(0, 0, 0, .14);
   --tabsep: rgba(60, 60, 67, .28);
   --tab-on: #ececef;           /* onglet actif : la couleur de la barre du dessous (changée par app.js selon la vue) */
   --bg: #f5f5f7;
@@ -64,7 +65,8 @@
   --frame-hover: rgba(255, 255, 255, .08);
   --overlay-symbol: #f5f5f7;
   --tabband: #151517;
-  --tabhover: rgba(255, 255, 255, .09);
+  --tabhover: rgba(255, 255, 255, .1);
+  --tabxhover: rgba(255, 255, 255, .18);
   --tabsep: rgba(255, 255, 255, .22);
   --tab-on: #282828;
   --bg: #1e1e1e;
