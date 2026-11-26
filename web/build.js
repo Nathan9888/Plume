@@ -26,7 +26,16 @@ html = html.replace(/<link rel="stylesheet" href="([^"]+)">/g, (_m, f) => {
   return '<style>\n' + css + '\n</style>';
 });
 
-const shim = read(path.join(__dirname, 'native-web.js')).replace('__VERSION__', pkg.version + ' (navigateur)');
+// Configuration du compte en ligne (adresse du projet Supabase + clé publique « anon / publishable »)
+const cloudCfg = JSON.parse(read(path.join(root, 'shared', 'cloud-config.json')));
+const CLOUD_URL = String(process.env.PLUME_CLOUD_URL || cloudCfg.url || '').trim().replace(/\/+$/, '');
+const CLOUD_KEY = String(process.env.PLUME_CLOUD_KEY || cloudCfg.key || '').trim();
+if (!/^(https:\/\/[A-Za-z0-9.\-]+(:\d+)?|http:\/\/(127\.0\.0\.1|localhost)(:\d+)?)?$/.test(CLOUD_URL)) throw new Error('shared/cloud-config.json : adresse du projet invalide.');
+if (!/^[A-Za-z0-9._\-]*$/.test(CLOUD_KEY)) throw new Error('shared/cloud-config.json : clé invalide (une clé publique ne contient que des lettres, chiffres, points, tirets).');
+const shim = read(path.join(__dirname, 'native-web.js'))
+  .replace('/*__CLOUD_CORE__*/', () => read(path.join(root, 'shared', 'cloud-core.js')))
+  .replace('__CLOUD_CFG__', () => JSON.stringify({ url: CLOUD_URL, key: CLOUD_KEY }))
+  .replace('__VERSION__', pkg.version + ' (navigateur)');
 // Le pont navigateur est le premier script exécuté, avant boot.js
 html = html.replace('<script src="boot.js"></script>', () => inlineScript(shim) + '\n  <script src="boot.js"></script>');
 html = html.replace(/<script src="([^"]+)"><\/script>/g, (_m, f) => inlineScript(read(path.join(R, f))));
@@ -35,9 +44,9 @@ const icon = fs.readFileSync(path.join(__dirname, 'favicon.png')).toString('base
 html = html.replace('<title>Plume</title>', () => '<title>Plume</title>\n  <link rel="icon" type="image/png" href="data:image/png;base64,' + icon + '">');
 
 // Deux sorties : dist-web/Plume.html (fichier autonome) et dist-site/ (le même éditeur, installable comme application : PWA).
-const CONNECT = 'https://api.anthropic.com https://generativelanguage.googleapis.com';
-const makeCsp = (site) => "default-src 'none'; script-src " + hashes.join(' ') + "; style-src 'unsafe-inline'; img-src data: blob:" + (site ? " 'self'" : '')
-  + "; font-src 'none'; connect-src " + CONNECT + (site ? "; manifest-src 'self'; worker-src 'self'" : '') + "; form-action 'none'; base-uri 'none'";
+const CONNECT = 'https://api.anthropic.com https://generativelanguage.googleapis.com' + (CLOUD_URL ? ' ' + CLOUD_URL : '');
+const makeCsp = (site) => "default-src 'none'; script-src " + hashes.join(' ') + "; style-src 'unsafe-inline' https://fonts.googleapis.com; img-src data: blob:" + (site ? " 'self'" : '')
+  + "; font-src https://fonts.gstatic.com; connect-src " + CONNECT + (site ? "; manifest-src 'self'; worker-src 'self'" : '') + "; form-action 'none'; base-uri 'none'";
 const CSP_RE = /<meta http-equiv="Content-Security-Policy" content="[^"]*">/;
 const withCsp = (h, site) => h.replace(CSP_RE, () => '<meta http-equiv="Content-Security-Policy" content="' + makeCsp(site) + '">');
 const SITE_HEAD = '\n  <meta name="theme-color" content="#dfdfe3">\n  <link rel="manifest" href="manifest.webmanifest">\n  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">';

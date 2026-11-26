@@ -5,6 +5,8 @@
 (function () {
   'use strict';
 
+  /*__CLOUD_CORE__*/
+  const CLOUD_CFG = JSON.parse('__CLOUD_CFG__');
   const VERSION = '__VERSION__';
   const MAGIC = new TextEncoder().encode('PLUMEENC1');
   const enc = new TextEncoder();
@@ -524,6 +526,25 @@
         }
       },
     },
+    // Compte en ligne : mêmes appels que dans l'application Windows ; la session est gardée dans le stockage local du navigateur.
+    cloud: (() => {
+      const SK = 'plume.cloud.session';
+      const core = window.PlumeCloudCore({
+        url: CLOUD_CFG.url, key: CLOUD_CFG.key,
+        fetch: (u, o) => fetch(u, o),
+        load: () => { try { return JSON.parse(localStorage.getItem(SK) || 'null'); } catch (_) { return null; } },
+        save: (sess) => { try { if (sess) localStorage.setItem(SK, JSON.stringify(sess)); else localStorage.removeItem(SK); } catch (_) { /* stockage bloqué : session en mémoire */ } },
+      });
+      const kind = location.protocol === 'file:' ? 'html' : 'site';
+      return {
+        status: async () => Object.assign(await core.status(), { kind }),
+        signIn: (e, p) => core.signIn(e, p),
+        signUp: (e, p) => core.signUp(e, p),
+        recover: (e) => core.recover(e),
+        signOut: () => core.signOut(),
+        request: (r) => core.request(r),
+      };
+    })(),
     recovery: {
       write: async (t) => { await kv.set('kv', 'recovery', String(t)); return true; },
       read: async () => { const v = await kv.get('kv', 'recovery'); return v === undefined ? null : v; },

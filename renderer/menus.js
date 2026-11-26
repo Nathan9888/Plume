@@ -10,6 +10,7 @@
 
   /* ---------- Composant de menu ---------- */
   const val = (v) => (typeof v === 'function' ? v() : v);
+  const cssFamily = (n) => '"' + String(n).replace(/["\\;{}]/g, '') + '", system-ui, sans-serif';
 
   /**
    * items : [{label, hint, icon, desc, checked, disabled, action, items}] ou '-' pour un séparateur.
@@ -30,7 +31,7 @@
         const hasSub = !!it.items;
         const b = h('button', { type: 'button', class: 'menu-item' + (chk ? ' checked' : '') + (it.desc ? ' two' : ''), role: 'menuitem', disabled: dis },
           h('span', { class: 'mi-lead' }, chk ? P.svgIcon('i-check', 'sm') : it.icon ? P.svgIcon(it.icon, 'sm') : null),
-          h('span', { class: 'mi-label' }, it.label, it.desc ? h('span', { class: 'mi-desc', text: it.desc }) : null),
+          h('span', { class: 'mi-label', style: it.style || (it.font ? 'font-family:' + cssFamily(it.font) + ';font-size:14px' : null) }, it.label, it.desc ? h('span', { class: 'mi-desc', text: it.desc }) : null),
           it.hint ? h('span', { class: 'mi-hint', text: it.hint }) : null,
           hasSub ? h('span', { class: 'mi-sub' }, P.svgIcon('i-chev-right', 'sm')) : null);
         const row = { b, it, dis, hasSub };
@@ -82,7 +83,7 @@
     function activate(lv, i) {
       const row = lv.rows[i];
       if (!row || row.dis) return;
-      if (row.hasSub) { openSub(lv, i); return; }
+      if (row.hasSub && !row.it.action) { openSub(lv, i); return; }
       P.pop.close();
       if (row.it.action) {
         try {
@@ -138,7 +139,7 @@
     const words = (text.match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu) || []).length;
     const noSpace = text.replace(/\s/g, '').length;
     const paras = Array.from(ed.querySelectorAll('p, h1, h2, h3, li, blockquote, td, th')).filter((n) => n.textContent.trim()).length;
-    const pages = state.pageless ? '—' : '≈ ' + Math.max(1, Math.ceil((ed.offsetHeight - 192) / 864));
+    const pages = state.pageless ? '—' : String(P.pageCount());
     P.modal({
       title: 'Statistiques du document',
       message: [`Mots : ${words}`, `Caractères (avec espaces) : ${text.replace(/\n/g, '').length}`, `Caractères (sans espaces) : ${noSpace}`,
@@ -165,7 +166,8 @@
       { label: 'Ouvrir un document récent', items: recentItems },
       '-',
       { label: 'Enregistrer', hint: 'Ctrl+S', icon: 'i-save', action: () => A().save(false) },
-      { label: 'Enregistrer sous…', hint: 'Ctrl+Maj+S', action: () => A().save(true) },
+      ...(A().canCloud && A().canCloud() && !(A().isCloud && A().isCloud()) ? [{ label: 'Enregistrer en ligne', icon: 'i-cloud', action: () => A().saveOnline() }] : []),
+      { label: A().isCloud && A().isCloud() ? 'Enregistrer une copie sur l’ordinateur…' : 'Enregistrer sous…', hint: 'F12', action: () => A().save(true) },
       '-',
       { label: 'Télécharger', items: [
         { label: 'Microsoft Word (.docx)', action: () => A().exportDocx() },
@@ -203,7 +205,7 @@
       '-',
       { label: 'Zoom', items: [50, 75, 90, 100, 125, 150, 200].map((z) => ({ label: z + ' %', checked: () => C().get('pageZoom') === z, action: () => C().set('pageZoom', z) })) },
       '-',
-      { label: 'Mode concentration', hint: 'Ctrl+Maj+C', desc: 'Masque tout sauf la page, avec le temps de lecture', checked: () => P.focus.isOn(), action: () => P.focus.toggle() },
+      { label: 'Mode concentration', hint: 'Ctrl+Alt+C', desc: 'Masque tout sauf la page, avec le temps de lecture', checked: () => P.focus.isOn(), action: () => P.focus.toggle() },
       { label: 'Mode compact', hint: 'Ctrl+Maj+F', checked: () => C().get('compact'), action: () => C().set('compact', !C().get('compact')) },
       { label: 'Plein écran', hint: 'F11', icon: 'i-fullscreen', action: () => A().toggleFullscreen() },
     ] },
@@ -231,8 +233,7 @@
         { label: 'Exposant', disabled: ro, action: fmt('superscript') },
         { label: 'Indice', disabled: ro, action: fmt('subscript') },
       ] },
-      { label: 'Styles de paragraphe', items: [['p', 'Texte normal'], ['h1', 'Titre 1'], ['h2', 'Titre 2'], ['h3', 'Titre 3'], ['blockquote', 'Citation']]
-        .map(([v, l]) => ({ label: l, disabled: ro, action: () => P.setBlock(v) })) },
+      { label: 'Styles de paragraphe', items: () => P.styles.menuItems() },
       { label: 'Aligner', items: [['justifyLeft', 'À gauche', 'i-al-left'], ['justifyCenter', 'Au centre', 'i-al-center'], ['justifyRight', 'À droite', 'i-al-right'], ['justifyFull', 'Justifié', 'i-al-justify']]
         .map(([c, l, i]) => ({ label: l, icon: i, disabled: ro, action: fmt(c, true) })) },
       { label: 'Listes', items: [
@@ -243,28 +244,28 @@
       { label: 'Augmenter le retrait', icon: 'i-indent-inc', disabled: ro, action: fmt('indent') },
       { label: 'Diminuer le retrait', icon: 'i-indent-dec', disabled: ro, action: fmt('outdent') },
       '-',
-      { label: 'Tableau', icon: 'i-table', disabled: () => ro() || !P.inTable(), items: [
-        { label: 'Ajouter une ligne en dessous', action: () => P.tableOp('addRow') },
-        { label: 'Ajouter une colonne à droite', action: () => P.tableOp('addCol') },
-        { label: 'Supprimer la ligne', action: () => P.tableOp('delRow') },
-        { label: 'Supprimer la colonne', action: () => P.tableOp('delCol') },
-        { label: 'Supprimer le tableau', action: () => P.tableOp('delTable') },
-      ] },
+      { label: 'Tableau', icon: 'i-table', disabled: () => ro() || !P.inTable(), items: () => P.tables.menuItems() },
+      { label: 'Image', icon: 'i-image', disabled: () => ro() || !(P.images && P.images.selected()), items: () => P.images.menuItems() },
       '-',
       { label: 'Effacer la mise en forme', hint: 'Ctrl+\\', icon: 'i-clear', disabled: ro, action: fmt('removeFormat') },
     ] },
     { label: 'Outils', items: () => [
       { label: 'Palette de commandes…', hint: 'Ctrl+Maj+P', icon: 'i-search', action: () => P.palette.open() },
       '-',
-      { label: 'Correcteur orthographique', icon: 'i-spell', checked: () => C().get('spell'), action: () => C().set('spell', !C().get('spell')) },
-      { label: 'Vérification de l’orthographe…', icon: 'i-spell', hint: 'Ctrl+Alt+X', action: () => P.actions.spellcard() },
-      { label: 'Statistiques du document…', action: stats },
+      { label: 'Orthographe et grammaire', icon: 'i-spell', items: () => [
+        { label: 'Vérification de l’orthographe…', icon: 'i-spell', hint: 'Ctrl+Alt+X', action: () => P.actions.spellcard() },
+        { label: 'Correcteur orthographique pendant la frappe', checked: () => C().get('spell'), action: () => C().set('spell', !C().get('spell')) },
+      ] },
+      { label: 'Nombre de mots', hint: 'Ctrl+Maj+C', icon: 'i-info', action: () => P.tools.wordCount() },
       { label: 'Rechercher et remplacer…', hint: 'Ctrl+H', icon: 'i-search', action: () => P.openFind() },
       '-',
-      { label: 'Assistant IA', icon: 'i-sparkle', items: () => P.ai.ui.docItems() },
-      '-',
-      { label: 'Vérifier les données sensibles', icon: 'i-shield', action: act('dlp') },
       { label: 'Réviser les suggestions', icon: 'i-suggest', action: () => P.showPanel('suggestions') },
+      { label: 'Définir', hint: 'Ctrl+Maj+Y', desc: 'Ouvre la définition du mot sélectionné (Wiktionnaire)', action: () => P.tools.define() },
+      '-',
+      { label: 'Saisie vocale', hint: 'Ctrl+Maj+S', icon: 'i-mic', desc: 'Dicter du texte au micro (Chrome, Edge ou Safari)', checked: () => P.tools.isVoiceOpen(), disabled: ro, action: () => P.tools.toggleVoice() },
+      '-',
+      { label: 'Assistant IA', icon: 'i-sparkle', items: () => P.ai.ui.docItems() },
+      { label: 'Vérifier les données sensibles', icon: 'i-shield', action: act('dlp') },
       '-',
       { label: 'Paramètres…', icon: 'i-settings', action: () => C().openDialog('appearance') },
     ] },

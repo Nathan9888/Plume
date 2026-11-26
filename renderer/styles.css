@@ -51,6 +51,11 @@
   --page-h: 1056px;  /* 11 po */
   --margin: 96px;    /* 1 po */
   --pz: 1;           /* zoom de la page */
+  --pg-gap: 24px;    /* espace entre deux feuilles */
+  --pg-edge: #cdd0d6; /* liseré des feuilles */
+  --pg-sheet: #fff;
+  --pg-canvas: var(--canvas);
+  --pg-shade: color-mix(in srgb, var(--canvas), #000 16%);
 }
 :root[data-accent="purple"] { --accent: #a550d6; }
 :root[data-accent="pink"] { --accent: #e8447e; }
@@ -141,25 +146,51 @@ button { cursor: var(--cur-default, default); }
 
 #page.sheet {
   width: var(--page-w);
-  min-height: var(--page-h);
+  min-height: var(--pg-minh, var(--page-h));
   margin: 0 auto;
   padding: var(--margin);
   background-color: #fff;
-  /* repères indicatifs de saut de page (une page Lettre toutes les 11 po) */
-  background-image: repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--page-h) - 2px), #c9ccd1 calc(var(--page-h) - 2px), #c9ccd1 var(--page-h));
-  box-shadow: 0 0 0 .5px rgba(0, 0, 0, .16), 0 1px 3px rgba(0, 0, 0, .12), 0 10px 30px rgba(0, 0, 0, .12);
+  position: relative;
   zoom: var(--pz);
   font: 11pt/1.5 Calibri, Carlito, "Segoe UI", Arial, sans-serif;
   outline: none;
   overflow-wrap: anywhere;
   white-space: normal;
 }
+/* Pagination : de vraies feuilles séparées par un espace (la même mécanique que Google Docs).
+   Le calque ci-dessous recouvre — au-dessus du texte — la marge basse, l'espace gris et la marge haute de chaque jonction ;
+   renderer/pages.js repousse les lignes hors de cette zone. */
+body:not(.pageless) #page.sheet::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 2;
+  --pg-P: calc(var(--page-h) + var(--pg-gap));
+  --pg-s: calc(var(--page-h) - var(--margin));
+  background:
+    linear-gradient(to bottom, var(--pg-edge) 0, var(--pg-edge) var(--margin), transparent var(--margin), transparent calc(var(--margin) + var(--pg-gap)), var(--pg-edge) calc(var(--margin) + var(--pg-gap)), var(--pg-edge) var(--pg-P)) left var(--pg-s) / 1px var(--pg-P) repeat-y,
+    linear-gradient(to bottom, var(--pg-edge) 0, var(--pg-edge) var(--margin), transparent var(--margin), transparent calc(var(--margin) + var(--pg-gap)), var(--pg-edge) calc(var(--margin) + var(--pg-gap)), var(--pg-edge) var(--pg-P)) right var(--pg-s) / 1px var(--pg-P) repeat-y,
+    linear-gradient(to bottom,
+      var(--pg-sheet) 0, var(--pg-sheet) calc(var(--margin) - 1px),
+      var(--pg-edge) calc(var(--margin) - 1px), var(--pg-edge) var(--margin),
+      var(--pg-shade) var(--margin), var(--pg-canvas) calc(var(--margin) + 8px),
+      var(--pg-canvas) calc(var(--margin) + var(--pg-gap)),
+      var(--pg-edge) calc(var(--margin) + var(--pg-gap)), var(--pg-edge) calc(var(--margin) + var(--pg-gap) + 1px),
+      var(--pg-sheet) calc(var(--margin) + var(--pg-gap) + 1px), var(--pg-sheet) calc(var(--margin) * 2 + var(--pg-gap)),
+      transparent calc(var(--margin) * 2 + var(--pg-gap)), transparent var(--pg-P)) left var(--pg-s) / 100% var(--pg-P) repeat-y;
+}
+/* Le bloc qui chevauche une limite de page : un flottant invisible dont la forme est la zone interdite (cf. pages.js) */
+body:not(.pageless) #page [data-pg="t"]::before {
+  content: ""; float: left; width: 100%; height: var(--pgh);
+  shape-outside: repeating-linear-gradient(to bottom,
+    transparent calc(var(--pgy) - (var(--page-h) - 2 * var(--margin))), transparent var(--pgy),
+    #000 var(--pgy), #000 calc(var(--pgy) + var(--margin) * 2 + var(--pg-gap)));
+}
+body:not(.pageless) #page tr[data-pg="r"] > td::before,
+body:not(.pageless) #page tr[data-pg="r"] > th::before { content: ""; display: block; height: var(--pgy); margin: -3px -10px 0; border-top: 3px solid transparent; background: var(--pg-sheet); position: relative; z-index: 1; }
+body:not(.pageless) #page [data-pg="m"] { margin-top: var(--pgm) !important; }
 body.pageless #page.sheet {
   width: auto;
   max-width: 920px;
   min-height: calc(100% - 8px);
   padding: 40px 64px;
-  background-image: none;
   box-shadow: none;
   border-radius: 0;
 }
@@ -170,6 +201,11 @@ body.pageless #scroller { padding: var(--chrome-h, 86px) 16px 64px calc(16px + v
 #page h1 { font-size: 20pt; margin: 1em 0 .4em; line-height: 1.25; }
 #page h2 { font-size: 16pt; margin: .9em 0 .35em; line-height: 1.25; }
 #page h3 { font-size: 14pt; margin: .8em 0 .3em; line-height: 1.3; }
+#page h4 { font-size: 12pt; margin: .8em 0 .3em; line-height: 1.3; font-weight: 700; color: #434343; }
+#page h5 { font-size: 11pt; margin: .8em 0 .3em; line-height: 1.3; font-weight: 700; color: #666; }
+#page h6 { font-size: 11pt; margin: .8em 0 .3em; line-height: 1.3; font-weight: 400; font-style: italic; color: #666; }
+#page p.doc-title { font-size: 26pt; margin: 0 0 3pt; line-height: 1.15; }
+#page p.doc-subtitle { font-size: 15pt; margin: 0 0 16pt; line-height: 1.15; color: #666; }
 #page blockquote { margin: .6em 0; padding: 0 0 0 16px; border-left: 3px solid #c9ccd1; color: #444; }
 #page ul, #page ol { margin: .3em 0 .6em; padding-left: 28px; }
 #page ul.checklist { list-style: none; padding-left: 4px; }
@@ -185,6 +221,8 @@ body.pageless #scroller { padding: var(--chrome-h, 86px) 16px 64px calc(16px + v
 #page .pagebreak { position: relative; height: 0; margin: 28px -96px; border-top: 1px dashed #9aa0a6; user-select: none; }
 #page .pagebreak::after { content: "Saut de page"; position: absolute; right: 10px; top: -9px; padding: 0 6px; background: #fff; color: #86868b; font: 11px var(--ui); }
 body.pageless #page .pagebreak { margin: 28px -64px; }
+body:not(.pageless) #page .pagebreak { margin: .3em calc(-1 * var(--margin)) 0; z-index: 1; }
+body:not(.pageless) #page .pagebreak[data-pg="b"] { height: var(--pgm); }
 
 /* Puces intelligentes */
 .chip { display: inline-block; padding: 0 8px; border-radius: 6px; background: var(--chip); border: 1px solid #c5dcff; cursor: var(--cur-pointer, pointer); white-space: nowrap; font-size: .95em; line-height: 1.45; user-select: all; }
@@ -352,7 +390,10 @@ button:disabled { opacity: .45; }
   .noexport { display: none !important; }
   #page .pagebreak { height: 0; margin: 0; border: 0; break-after: page; }
   #page .pagebreak::after { display: none; }
-  #page h1, #page h2, #page h3 { break-after: avoid; }
+  #page.sheet::after, #page [data-pg]::before, #page tr[data-pg] > td::before, #page tr[data-pg] > th::before { display: none !important; }
+  #page [data-pg="m"] { margin-top: revert !important; }
+  #page .pagebreak[data-pg="b"] { height: 0 !important; }
+  #page h1, #page h2, #page h3, #page h4, #page h5, #page h6, #page p.doc-title, #page p.doc-subtitle { break-after: avoid; }
   #page tr, #page img { break-inside: avoid; }
   .chip { user-select: auto; }
 }

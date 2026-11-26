@@ -39,6 +39,7 @@
   P.cleanHTML = () => {
     const c = ed.cloneNode(true);
     c.querySelectorAll('.active').forEach((n) => n.classList.remove('active'));
+    if (P.pages) P.pages.strip(c);
     return c.innerHTML;
   };
 
@@ -49,6 +50,7 @@
     const holder = document.createElement('div');
     holder.innerHTML = rawHtml;
     holder.querySelectorAll('.active').forEach((n) => n.classList.remove('active'));
+    if (P.pages) P.pages.strip(holder);
     st.assets = st.assets || {};
     const html = P.pack(holder.innerHTML, st.assets);
     const used = new Set();
@@ -59,7 +61,7 @@
     used.forEach((id) => { if (st.assets[id]) assets[id] = st.assets[id]; });
     return {
       format: 'plume', version: 1, title: st.title, savedAt: new Date().toISOString(),
-      pageless: st.pageless, html, assets,
+      pageless: st.pageless, html, assets, styles: P.styles ? P.styles.clean(st.styles) : {},
       variables: st.variables, comments: st.comments, versions: st.versions,
     };
   };
@@ -81,6 +83,8 @@
     }
     state.title = str(data.title || 'Sans titre', 200) || 'Sans titre';
     state.pageless = !!data.pageless;
+    state.styles = P.styles ? P.styles.clean(data.styles) : {};
+    if (P.styles) P.styles.render();
     state.variables = {};
     if (data.variables && typeof data.variables === 'object') for (const [k, v] of Object.entries(data.variables)) state.variables[str(k, 100)] = str(v, 500);
     state.comments = (Array.isArray(data.comments) ? data.comments : [])

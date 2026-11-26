@@ -201,8 +201,54 @@
     'TABLE', 'THEAD', 'TBODY', 'TFOOT', 'TR', 'TD', 'TH', 'COLGROUP', 'COL', 'IMG', 'SPAN', 'DIV', 'HR', 'BLOCKQUOTE', 'PRE', 'CODE',
     'SUB', 'SUP', 'FONT', 'INS', 'DEL', 'INPUT', 'BUTTON']);
   const STYLE_OK = ['font-weight', 'font-style', 'text-decoration', 'text-decoration-line', 'color', 'background-color', 'font-size', 'font-family', 'text-align'];
-  const CLASS_OK = /^(chip|chip-[a-z]+|cmt|resolved|active|sg-ins|sg-del|checklist|pagebreak|block|block-mail|noexport|callout|callout-(info|tip|warn|danger)|toc|toc-title|toc-body|toc-item|toc-empty|lvl[1-3]|react|tbl-none|tbl-thick)$/;
+  const CLASS_OK = /^(chip|chip-[a-z]+|cmt|resolved|active|sg-ins|sg-del|checklist|pagebreak|block|block-mail|noexport|callout|callout-(info|tip|warn|danger)|tbl-nosplit|doc-title|doc-subtitle|toc|toc-title|toc-body|toc-item|toc-empty|lvl[1-3]|react|tbl-none|tbl-thick)$/;
   const ATTR_OK = new Set(['class', 'style', 'contenteditable', 'colspan', 'rowspan', 'width', 'height', 'align', 'alt', 'title', 'checked', 'type', 'href', 'src', 'color', 'face', 'size']);
+
+  // Mise en forme des tableaux : bordures par côté, alignement vertical, marges, largeurs. Chaque valeur est vérifiée une à une.
+  const TABLE_TAGS = new Set(['TABLE', 'TR', 'TD', 'TH', 'COL']);
+  const LEN = /^\d{1,4}(\.\d{1,2})?(px|pt|%)$/;
+  const COLOR = /^(#[0-9a-f]{3,8}|rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(,\s*[01]?\.?\d*\s*)?\)|[a-z]{3,20})$/i;
+  const BSTYLE = /^(none|solid|dashed|dotted|double)$/;
+  function cleanBorder(v) {
+    v = String(v || '').trim();
+    if (/^(none|hidden)$/i.test(v) || /^0(px|pt)?(\s+none)?$/i.test(v)) return 'none';
+    const m = /^(\d{1,2}(?:\.\d{1,2})?(?:px|pt))\s+(none|solid|dashed|dotted|double)\s+(.+)$/i.exec(v);
+    return m && COLOR.test(m[3].trim()) ? m[1] + ' ' + m[2].toLowerCase() + ' ' + m[3].trim() : '';
+  }
+  function readTableStyle(el, tag, out) {
+    const st = el.style;
+    if (tag === 'TD' || tag === 'TH') {
+      for (const side of ['top', 'right', 'bottom', 'left']) {
+        let v = st.getPropertyValue('border-' + side);
+        if (!v) {
+          const w = st.getPropertyValue('border-' + side + '-width'), s = st.getPropertyValue('border-' + side + '-style'), c = st.getPropertyValue('border-' + side + '-color');
+          if (s && /^(none|hidden)$/.test(s)) v = 'none';
+          else if (w && s && c) v = w + ' ' + s + ' ' + c;
+        }
+        v = cleanBorder(v);
+        if (v) out['border-' + side] = v;
+      }
+      const va = st.getPropertyValue('vertical-align');
+      if (/^(top|middle|bottom)$/.test(va)) out['vertical-align'] = va;
+      const pad = st.getPropertyValue('padding');
+      if (/^\d{1,3}(px|pt)(\s+\d{1,3}(px|pt)){0,3}$/.test(pad)) out.padding = pad;
+    }
+    if (tag === 'TABLE') {
+      const tl = st.getPropertyValue('table-layout'); if (/^(fixed|auto)$/.test(tl)) out['table-layout'] = tl;
+      for (const p of ['margin-left', 'margin-right']) { const v = st.getPropertyValue(p); if (/^(auto|0|0px)$/.test(v)) out[p] = v; }
+    }
+    if (tag === 'IMG') {
+      let v = st.getPropertyValue('border');
+      if (!v) {
+        const w = st.getPropertyValue('border-top-width'), s = st.getPropertyValue('border-top-style'), c = st.getPropertyValue('border-top-color');
+        if (s && /^(none|hidden)$/.test(s)) v = 'none'; else if (w && s && c) v = w + ' ' + s + ' ' + c;
+      }
+      v = cleanBorder(v);
+      if (v && v !== 'none') out.border = v;
+    }
+    if (tag !== 'TR') { const w = st.getPropertyValue('width'); if (LEN.test(w)) out.width = w; }
+    if (tag === 'TR' || tag === 'TD' || tag === 'TH' || tag === 'IMG') { const hh = st.getPropertyValue('height'); if (LEN.test(hh)) out.height = hh; }
+  }
 
   /**
    * Nettoie un fragment HTML.
@@ -228,6 +274,7 @@
         }
         const keepStyle = {};
         for (const p of STYLE_OK) { const v = el.style.getPropertyValue(p); if (v) keepStyle[p] = v; }
+        if (TABLE_TAGS.has(tag) || tag === 'IMG') readTableStyle(el, tag, keepStyle);
         for (const a of Array.from(el.attributes)) {
           const n = a.name.toLowerCase();
           const isData = n.startsWith('data-');

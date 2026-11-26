@@ -75,7 +75,65 @@
     return el;
   }
 
+  /* ---------- Documents en ligne (compte) ---------- */
+  const ago = (iso) => {
+    const t = Date.parse(iso);
+    if (isNaN(t)) return '';
+    const sec = Math.max(0, Math.round((Date.now() - t) / 1000));
+    if (sec < 60) return 'à l’instant';
+    if (sec < 3600) return 'il y a ' + Math.round(sec / 60) + ' min';
+    return 'modifié ' + fmtOpened(t);
+  };
+
+  function cloudCard(d) {
+    const open = () => P.app.openCloud(d.id);
+    const more = h('button', { type: 'button', class: 'icon-btn rmore', title: 'Plus d’actions', 'aria-label': 'Plus d’actions pour ' + d.title,
+      onclick: (e) => {
+        e.stopPropagation();
+        if (P.pop.isOpen() && P.pop.anchor() === more) { P.pop.close(); return; }
+        P.menu.open([
+          { label: 'Ouvrir', icon: 'i-folder', action: open },
+          '-',
+          { label: 'Supprimer du compte…', icon: 'i-trash', action: () => P.app.deleteCloud(d.id) },
+        ], { anchor: more, align: 'right' });
+      } }, P.svgIcon('i-more'));
+    more.addEventListener('mousedown', (e) => e.stopPropagation());
+    return h('div', { class: 'rcard cloud', role: 'button', tabindex: '0', title: d.title,
+      onclick: open, onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); open(); } } },
+    h('div', { class: 'rthumb' }, previewEl({ preview: (d.title ? d.title + '\n' : '') + (d.preview || '') })),
+    h('div', { class: 'rinfo' },
+      h('div', { class: 'rtitle', text: d.title || 'Sans titre' }),
+      h('div', { class: 'rmeta' }, P.svgIcon('i-cloud', 'sm'), ago(d.updated_at))),
+    more);
+  }
+
+  function renderCloud() {
+    const Y = P.sync;
+    const sec = $('#cloud-sec');
+    const on = !!(Y && Y.account.configured && Y.account.signedIn);
+    sec.hidden = !on;
+    if (!on) return;
+    const box = $('#cloud-list');
+    box.replaceChildren();
+    box.classList.toggle('list', cfg().get('homeView') === 'list');
+    let items = Y.docs();
+    const q = $('#home-q').value.trim().toLowerCase();
+    if (q) items = items.filter((d) => String(d.title || '').toLowerCase().includes(q) || String(d.preview || '').toLowerCase().includes(q));
+    if (cfg().get('homeSort') === 'title') items.sort((a, b) => String(a.title).localeCompare(String(b.title), 'fr', { sensitivity: 'base' }));
+    $('#cloud-count').textContent = items.length ? String(items.length) : '';
+    const st = $('#cloud-state');
+    st.className = 'cloud-state' + (Y.status === 'offline' || Y.status === 'error' ? ' err' : '');
+    st.textContent = Y.status === 'syncing' ? 'Synchronisation…' : Y.status === 'offline' ? 'Hors ligne' : Y.status === 'error' ? 'Synchronisation impossible' : Y.account.email || '';
+    if (!items.length) {
+      box.append(h('div', { class: 'home-empty soft' }, q ? ['Aucun document en ligne ne correspond à « ', h('b', { text: $('#home-q').value.trim() }), ' ».']
+        : [h('b', { text: 'Aucun document en ligne.' }), ' Les nouveaux documents sont enregistrés automatiquement dans votre compte et apparaissent ici sur tous vos appareils.']));
+      return;
+    }
+    items.forEach((d) => box.append(cloudCard(d)));
+  }
+
   function renderRecents() {
+    renderCloud();
     const box = $('#recent-list');
     box.replaceChildren();
     const view = cfg().get('homeView');
@@ -122,6 +180,7 @@
     $('#home-view').addEventListener('click', () => { cfg().set('homeView', cfg().get('homeView') === 'list' ? 'grid' : 'list'); renderRecents(); });
     $('#home-open').addEventListener('click', () => P.app.openDoc());
     cfg().onChange((k) => { if (k === '*') { applyTplState(); renderRecents(); } });
+    if (P.sync) P.sync.on((t) => { if ((t === 'docs' || t === 'auth' || t === 'status') && !$('#home').hidden) renderCloud(); });
   }
 
   P.home = { init, refresh, showTemplates, recents: () => recents };

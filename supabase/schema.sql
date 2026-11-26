@@ -7,6 +7,7 @@ create table if not exists public.plume_documents (
   id          uuid primary key default gen_random_uuid(),
   user_id     uuid not null default auth.uid() references auth.users(id) on delete cascade,
   title       text not null default 'Sans titre',
+  preview     text not null default '',
   body        text not null default '',
   encrypted   boolean not null default false,
   rev         integer not null default 1,
@@ -15,6 +16,9 @@ create table if not exists public.plume_documents (
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
+-- (pour une base créée avec une version précédente de ce fichier)
+alter table public.plume_documents add column if not exists preview text not null default '';
+
 create index if not exists plume_documents_user_updated on public.plume_documents (user_id, updated_at desc);
 
 -- Profil et réglages (une ligne par compte)

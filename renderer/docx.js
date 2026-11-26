@@ -216,6 +216,14 @@
     return out;
   }
 
+  /** Bordure d'image : « 2pt dashed #f00 » → <a:ln> */
+  function imgLine(img) {
+    const m = /^([\d.]+)(pt|px)\s+(solid|dashed|dotted|double)\s+(.+)$/.exec((img.style && img.style.border) || '');
+    if (!m) return '';
+    const pt = m[2] === 'px' ? parseFloat(m[1]) * 0.75 : parseFloat(m[1]);
+    const dash = { solid: 'solid', dashed: 'dash', dotted: 'sysDot', double: 'solid' }[m[3]];
+    return `<a:ln w="${Math.max(1, Math.round(pt * 12700))}"><a:solidFill><a:srgbClr val="${parseColor(m[4]) || '000000'}"/></a:solidFill><a:prstDash val="${dash}"/></a:ln>`;
+  }
   function imageRun(img, ctx) {
     const m = /^data:image\/(png|jpe?g|gif);base64,(.+)$/i.exec(img.getAttribute('src') || '');
     if (!m) return textRun('[image non exportée]', {}, ctx);
@@ -229,7 +237,7 @@
     if (w > 624) { h = (h * 624) / w; w = 624; }
     const cx = Math.round(w * 9525), cy = Math.round(h * 9525);
     const id = ctx.docPr++;
-    return `<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${id}" name="Image ${id}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${id}" name="${name}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
+    return `<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${id}" name="Image ${id}"${img.getAttribute('alt') ? ` descr="${esc(img.getAttribute('alt'))}"` : ''}/><wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${id}" name="${name}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom>${imgLine(img)}</pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
   }
 
   function hyperlink(href, inner, ctx) {
@@ -309,7 +317,12 @@
   }
 
   function alignOf(el) {
-    const a = (el.style && el.style.textAlign) || el.getAttribute('align') || '';
+    let a = (el.style && el.style.textAlign) || el.getAttribute('align') || '';
+    // un paragraphe sans alignement propre suit celui de sa cellule de tableau
+    for (let p = el.parentElement; !a && p; p = p.parentElement) {
+      if (p.tagName === 'TD' || p.tagName === 'TH') { a = (p.style && p.style.textAlign) || p.getAttribute('align') || ''; break; }
+      if (p.tagName === 'TABLE' || p.tagName === 'BODY') break;
+    }
     return { center: 'center', right: 'right', justify: 'both', left: 'left' }[a] || null;
   }
 
@@ -356,33 +369,88 @@
     return out;
   }
 
+  /** « 1pt solid #000 » → <w:top w:val="single" …/> */
+  function cellBorder(name, v) {
+    if (!v) return '';
+    if (v === 'none') return `<w:${name} w:val="nil"/>`;
+    const m = /^([\d.]+)(pt|px)\s+(\w+)\s+(.+)$/.exec(v);
+    if (!m) return '';
+    const pt = m[2] === 'px' ? parseFloat(m[1]) * 0.75 : parseFloat(m[1]);
+    const sz = Math.max(2, Math.min(96, Math.round(pt * 8)));
+    const val = { solid: 'single', dashed: 'dashed', dotted: 'dotted', double: 'double' }[m[3]] || 'single';
+    return `<w:${name} w:val="${val}" w:sz="${sz}" w:space="0" w:color="${parseColor(m[4]) || '000000'}"/>`;
+  }
+  const pxOf = (v) => { const m = /^([\d.]+)(px|pt)?$/.exec(String(v || '').trim()); return m ? parseFloat(m[1]) * (m[2] === 'pt' ? 4 / 3 : 1) : 0; };
+
   function table(el, ctx, o) {
     const rows = Array.from(el.rows || []);
     if (!rows.length) return '';
-    const spanOf = (c) => Math.max(1, c.colSpan || 1);
-    const cols = Math.max(...rows.map((r) => Array.from(r.cells).reduce((s, c) => s + spanOf(c), 0)), 1);
-    const total = 9360 - (o.indent || 0);
-    const w = Math.floor(total / cols);
+    // grille : position réelle des cellules (fusions comprises)
+    const g = rows.map(() => []);
+    const pos = new Map();
+    rows.forEach((tr, r) => {
+      let c = 0;
+      Array.from(tr.cells).forEach((cell) => {
+        while (g[r][c]) c++;
+        const rs = Math.max(1, Math.min(cell.rowSpan || 1, rows.length - r)), cs = Math.max(1, Math.min(cell.colSpan || 1, 64));
+        for (let i = 0; i < rs; i++) for (let j = 0; j < cs; j++) g[r + i][c + j] = cell;
+        pos.set(cell, { r, c, rs, cs });
+        c += cs;
+      });
+    });
+    const cols = Math.max(...g.map((x) => x.length), 1);
+    const avail = 9360 - (o.indent || 0);
+    // largeurs : <col> en pixels, sinon largeur des cellules, sinon colonnes égales
+    let widths = new Array(cols).fill(0);
+    const colEls = Array.from(el.querySelectorAll(':scope > colgroup > col'));
+    colEls.forEach((c, i) => { if (i < cols) widths[i] = pxOf(c.style && c.style.width) * 15; });
+    if (widths.some((w) => !w)) {
+      for (let c = 0; c < cols; c++) {
+        if (widths[c]) continue;
+        for (let r = 0; r < g.length && !widths[c]; r++) { const cell = g[r][c]; const p = cell && pos.get(cell); if (p && p.cs === 1) widths[c] = (pxOf(cell.style && cell.style.width) || pxOf(cell.getAttribute('width'))) * 15; }
+      }
+    }
+    const known = widths.filter(Boolean);
+    const fill = known.length ? known.reduce((a, b) => a + b, 0) / known.length : avail / cols;
+    widths = widths.map((w) => Math.round(w || fill));
+    let total = widths.reduce((a, b) => a + b, 0);
+    const full = el.style && el.style.width === '100%';
+    if (total > avail || full || !known.length) { const k = (full || !known.length ? avail : avail) / total; widths = widths.map((w) => Math.max(200, Math.floor(w * k))); total = widths.reduce((a, b) => a + b, 0); }
+    const ml = el.style && el.style.marginLeft, mr = el.style && el.style.marginRight;
+    const jc = ml === 'auto' && mr === 'auto' ? 'center' : ml === 'auto' ? 'right' : '';
     const border = (n) => `<w:${n} w:val="single" w:sz="4" w:space="0" w:color="BFBFBF"/>`;
-    let x = `<w:tbl><w:tblPr><w:tblW w:w="${w * cols}" w:type="dxa"/>${o.indent ? `<w:tblInd w:w="${o.indent}" w:type="dxa"/>` : ''}<w:tblBorders>${['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map(border).join('')}</w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="100" w:type="dxa"/><w:right w:w="100" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${'<w:gridCol w:w="' + w + '"/>'.repeat(cols)}</w:tblGrid>`;
-    for (const row of rows) {
-      x += '<w:tr>';
-      for (const cell of Array.from(row.cells)) {
-        const span = spanOf(cell);
+    const nosplit = el.classList.contains('tbl-nosplit');
+    let x = `<w:tbl><w:tblPr><w:tblW w:w="${total}" w:type="dxa"/>${jc ? `<w:jc w:val="${jc}"/>` : ''}${o.indent ? `<w:tblInd w:w="${o.indent}" w:type="dxa"/>` : ''}<w:tblBorders>${['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map(border).join('')}</w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="100" w:type="dxa"/><w:right w:w="100" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${widths.map((w) => '<w:gridCol w:w="' + w + '"/>').join('')}</w:tblGrid>`;
+    rows.forEach((tr, r) => {
+      const pinned = tr.parentElement && tr.parentElement.tagName === 'THEAD';
+      const hpx = pxOf(tr.style && tr.style.height) || pxOf(tr.getAttribute('height'));
+      const trPr = (nosplit ? '<w:cantSplit/>' : '') + (hpx ? `<w:trHeight w:val="${Math.round(hpx * 15)}" w:hRule="atLeast"/>` : '') + (pinned ? '<w:tblHeader/>' : '');
+      x += '<w:tr>' + (trPr ? `<w:trPr>${trPr}</w:trPr>` : '');
+      for (let c = 0; c < cols;) {
+        const cell = g[r][c];
+        if (!cell) { x += `<w:tc><w:tcPr><w:tcW w:w="${widths[c]}" w:type="dxa"/></w:tcPr><w:p/></w:tc>`; c++; continue; }
+        const p = pos.get(cell);
+        const w = widths.slice(p.c, p.c + p.cs).reduce((a, b) => a + b, 0);
+        const grid = p.cs > 1 ? `<w:gridSpan w:val="${p.cs}"/>` : '';
+        if (p.r < r) { x += `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${grid}<w:vMerge/></w:tcPr><w:p/></w:tc>`; c += p.cs; continue; }
         const th = cell.tagName === 'TH';
         const bg = parseColor(cell.style && cell.style.backgroundColor) || (th ? 'F1F3F4' : null);
         let inner = hasBlockChildren(cell)
           ? blocks(cell, ctx, { rbase: th ? { b: true } : {} })
           : para(inline(cell.childNodes, th ? { b: true } : {}, ctx), { align: alignOf(cell) });
         if (!inner || inner.endsWith('</w:tbl>')) inner += '<w:p/>';
-        x += `<w:tc><w:tcPr><w:tcW w:w="${w * span}" w:type="dxa"/>${span > 1 ? `<w:gridSpan w:val="${span}"/>` : ''}${bg ? `<w:shd w:val="clear" w:color="auto" w:fill="${bg}"/>` : ''}</w:tcPr>${inner}</w:tc>`;
+        const st = cell.style || { getPropertyValue: () => '' };
+        const bd = ['top', 'left', 'bottom', 'right'].map((side) => cellBorder(side, st.getPropertyValue('border-' + side) || (/^(none|hidden)$/.test(st.getPropertyValue('border-' + side + '-style')) ? 'none' : ''))).join('');
+        const pad = String(st.getPropertyValue('padding') || '').trim().split(/\s+/).filter(Boolean).map(pxOf);
+        const mar = pad.length ? (() => { const [t, rr = t, b = t, l = rr] = pad; return `<w:tcMar><w:top w:w="${Math.round(t * 15)}" w:type="dxa"/><w:left w:w="${Math.round(l * 15)}" w:type="dxa"/><w:bottom w:w="${Math.round(b * 15)}" w:type="dxa"/><w:right w:w="${Math.round(rr * 15)}" w:type="dxa"/></w:tcMar>`; })() : '';
+        const va = { top: 'top', middle: 'center', bottom: 'bottom' }[st.getPropertyValue('vertical-align')];
+        x += `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${grid}${p.rs > 1 ? '<w:vMerge w:val="restart"/>' : ''}${bd ? `<w:tcBorders>${bd}</w:tcBorders>` : ''}${bg ? `<w:shd w:val="clear" w:color="auto" w:fill="${bg}"/>` : ''}${mar}${va ? `<w:vAlign w:val="${va}"/>` : ''}</w:tcPr>${inner}</w:tc>`;
+        c += p.cs;
       }
       x += '</w:tr>';
-    }
+    });
     return x + '</w:tbl><w:p><w:pPr><w:spacing w:after="0"/></w:pPr></w:p>';
   }
-
-  const CALLOUT_COLORS = { info: ['EAF3FF', '0A84FF'], tip: ['E9F8EE', '30A14E'], warn: ['FFF5E0', 'FF9F0A'], danger: ['FFECEA', 'FF453A'] };
 
   /** Encadré : tableau d'une cellule, fond teinté et filet coloré à gauche. */
   function callout(el, ctx, o) {

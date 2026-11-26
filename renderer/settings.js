@@ -9,17 +9,20 @@
   /* ---------- Raccourcis (aussi affichés dans les menus et dans l'aide) ---------- */
   P.SHORTCUTS = [
     ['Fichier', [
-      ['Nouveau document', 'Ctrl+N'], ['Ouvrir…', 'Ctrl+O'], ['Enregistrer', 'Ctrl+S'], ['Enregistrer sous…', 'Ctrl+Maj+S'],
+      ['Nouveau document', 'Ctrl+N'], ['Ouvrir…', 'Ctrl+O'], ['Enregistrer', 'Ctrl+S'], ['Enregistrer sous…', 'F12 · Ctrl+Alt+S'],
       ['Imprimer', 'Ctrl+P'], ['Fermer l’onglet', 'Ctrl+W'], ['Onglet suivant / précédent', 'Ctrl+Tab · Ctrl+Maj+Tab'], ['Accueil', 'Alt+Début'],
     ]],
     ['Mise en forme', [
       ['Gras · Italique · Souligné', 'Ctrl+B · Ctrl+I · Ctrl+U'], ['Insérer un lien', 'Ctrl+K'], ['Effacer la mise en forme', 'Ctrl+\\'],
       ['Annuler · Rétablir', 'Ctrl+Z · Ctrl+Y'], ['Commenter la sélection', 'Ctrl+Alt+M'], ['Vérification de l’orthographe', 'Ctrl+Alt+X'], ['Demander à l’IA', 'Ctrl+Alt+J'], ['Puces intelligentes, champs et blocs', '@'],
-      ['Titres, listes, encadrés, tableau… (début d’une ligne vide)', '/'], ['Coller sans la mise en forme', 'Ctrl+Maj+V'], ['Menu contextuel', 'Clic droit · Maj+F10'],
+      ['Styles de paragraphe : texte normal · titres 1 à 6', 'Ctrl+Alt+0 · Ctrl+Alt+1 … 6'], ['Tableau : cellule suivante · précédente', 'Tab · Maj+Tab'], ['Titres, listes, encadrés, tableau… (début d’une ligne vide)', '/'], ['Coller sans la mise en forme', 'Ctrl+Maj+V'], ['Menu contextuel', 'Clic droit · Maj+F10'],
     ]],
     ['Affichage', [
       ['Rechercher et remplacer', 'Ctrl+F · Ctrl+H'], ['Zoom de la page', 'Ctrl++ · Ctrl+− · Ctrl+0'], ['Mode compact', 'Ctrl+Maj+F'],
-      ['Plein écran', 'F11'], ['Mode concentration', 'Ctrl+Maj+C · Échap pour quitter'], ['Palette de commandes', 'Ctrl+Maj+P'], ['Raccourcis clavier', 'Ctrl+/'],
+      ['Plein écran', 'F11'], ['Mode concentration', 'Ctrl+Alt+C · Échap pour quitter'], ['Palette de commandes', 'Ctrl+Maj+P'], ['Raccourcis clavier', 'Ctrl+/'],
+    ]],
+    ['Outils', [
+      ['Saisie vocale', 'Ctrl+Maj+S'], ['Nombre de mots', 'Ctrl+Maj+C'], ['Définir le mot', 'Ctrl+Maj+Y'], ['Orthographe et grammaire', 'Ctrl+Alt+X'],
     ]],
   ];
 
@@ -62,7 +65,7 @@
       options: [['black', 'Noir'], ['white', 'Blanc'], ['graphite', 'Graphite'], ['blue', 'Bleu'], ['purple', 'Violet'], ['pink', 'Rose'], ['red', 'Rouge'], ['orange', 'Orange'], ['green', 'Vert'], ['accent', 'Couleur d’accent']] },
     { key: 'cursorPreview', section: 'appearance', grp: 'Curseur', type: 'cursors', label: 'Aperçu' },
     { key: 'focusDim', section: 'appearance', grp: 'Mode concentration', type: 'toggle', def: true, label: 'Estomper les autres paragraphes',
-      desc: 'En mode concentration (Ctrl+Maj+C), seul le paragraphe en cours reste bien visible.' },
+      desc: 'En mode concentration (Ctrl+Alt+C), seul le paragraphe en cours reste bien visible.' },
     { key: 'wordCount', section: 'appearance', grp: 'Interface', type: 'toggle', def: true, label: 'Compteur de mots', desc: 'Dans la barre d’état, en bas de la fenêtre.' },
     { key: 'pageZoom', section: 'appearance', grp: 'Document', type: 'select', def: 100, label: 'Zoom des pages',
       desc: 'Niveau de zoom appliqué au document (aussi réglable dans la barre d’outils).',
@@ -83,6 +86,11 @@
     { key: 'autoVersions', section: 'files', grp: 'Sauvegarde', quick: true, type: 'toggle', def: true, label: 'Versions automatiques',
       desc: 'Une version toutes les 10 minutes si le document a changé.' },
 
+    { key: 'saveWhere', section: 'account', hidden: true, type: 'select', def: 'cloud', label: 'Nouveaux documents',
+      desc: 'Où Ctrl+S enregistre un document qui n’a pas encore de fichier.',
+      options: [['cloud', 'En ligne (synchronisés)'], ['local', 'Sur cet ordinateur']] },
+    { key: 'syncProfile', section: 'account', hidden: true, type: 'toggle', def: true, label: 'Synchroniser les réglages et le nom',
+      desc: 'Thème, couleurs, correcteur, nom affiché… identiques sur tous vos appareils. Les clés de l’assistant IA ne sont jamais envoyées.' },
     { key: 'homeView', hidden: true, type: 'select', def: 'grid', options: [['grid', ''], ['list', '']] },
     { key: 'homeSort', hidden: true, type: 'select', def: 'recent', options: [['recent', ''], ['title', '']] },
     { key: 'tplOpen', hidden: true, type: 'toggle', def: false },
@@ -408,20 +416,69 @@
     return table;
   }
 
+
+  /* ---------- Compte en ligne et synchronisation ---------- */
+  const ago = (ms) => {
+    const sec = Math.max(0, Math.round((Date.now() - ms) / 1000));
+    if (sec < 10) return 'à l’instant';
+    if (sec < 60) return 'il y a ' + sec + ' s';
+    if (sec < 3600) return 'il y a ' + Math.round(sec / 60) + ' min';
+    return 'il y a ' + Math.round(sec / 3600) + ' h';
+  };
+
+  function accountSection(body) {
+    const Y = P.sync;
+    const A = Y ? Y.account : { configured: false, signedIn: false };
+    const input = h('input', { type: 'text', value: P.state.author || '', maxlength: '60', 'aria-label': 'Nom affiché', spellcheck: 'false' });
+    const saveName = () => { const v = input.value.trim(); if (v) P.app.setAuthor(v.slice(0, 60)); };
+    input.addEventListener('change', saveName);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveName(); } });
+
+    if (A.configured && A.signedIn) {
+      const sub = h('div', { class: 'acct-sub' });
+      const syncBtn = h('button', { type: 'button', class: 'chipbtn', text: 'Synchroniser maintenant', onclick: () => Y.syncNow() });
+      const outBtn = h('button', { type: 'button', class: 'chipbtn danger', text: 'Se déconnecter', onclick: async () => {
+        const ok = await P.app.signOut();
+        if (ok && P.settings.closeDialog) P.settings.closeDialog();
+      } });
+      const card = h('div', { class: 'acct-card' }, h('div', { class: 'pc-avatar' }),
+        h('div', { class: 'acct-info' }, h('div', { class: 'acct-mail', text: A.email || 'Compte connecté' }), sub));
+      const paint = () => {
+        let t = 'Connecté'; let c = '';
+        if (Y.status === 'syncing') t = 'Synchronisation en cours…';
+        else if (Y.status === 'offline') { t = 'Hors ligne : la synchronisation reprendra dès le retour d’Internet.'; c = 'err'; }
+        else if (Y.status === 'error') { t = Y.error || 'Erreur de synchronisation.'; c = 'err'; }
+        else if (Y.last) { t = 'À jour · ' + ago(Y.last); c = 'ok'; }
+        sub.textContent = t;
+        sub.className = 'acct-sub' + (c ? ' ' + c : '');
+      };
+      paint();
+      const off = Y.on(() => { if (!card.isConnected) { off(); return; } paint(); });
+      const timer = setInterval(() => { if (!card.isConnected) { clearInterval(timer); return; } paint(); }, 15000);
+      body.append(h('div', { class: 'set-cap', text: 'Compte en ligne' }), card,
+        h('div', { class: 'btnrow-inline' }, syncBtn, outBtn),
+        h('div', { class: 'set-cap', text: 'Synchronisation' }),
+        h('div', { class: 'set-group' }, rowOf(SCHEMA.find((d) => d.key === 'saveWhere'), 'set-row'), rowOf(SCHEMA.find((d) => d.key === 'syncProfile'), 'set-row')));
+      body.append(h('div', { class: 'set-cap', text: 'Profil' }));
+    } else if (A.configured) {
+      body.append(h('p', { class: 'lead', text: 'Vous n’êtes pas connecté. Connectez-vous pour retrouver vos documents et vos réglages sur tous vos appareils.' }),
+        h('div', { class: 'btnrow-inline' }, h('button', { type: 'button', class: 'chipbtn', text: 'Se connecter', onclick: () => { if (P.settings.closeDialog) P.settings.closeDialog(); P.auth.show(); } })));
+      body.append(h('div', { class: 'set-cap', text: 'Profil' }));
+    } else {
+      body.append(h('p', { class: 'lead', text: 'Ce nom accompagne vos commentaires, vos suggestions et les versions du document. La synchronisation en ligne n’est pas activée dans cette version de Plume.' }));
+    }
+    body.append(h('div', { class: 'set-group' },
+      h('div', { class: 'set-row' }, h('div', { class: 'lbl' }, 'Nom affiché', h('span', { class: 'desc', text: 'Visible dans les commentaires et les suggestions.' })), input),
+      h('div', { class: 'set-row' }, h('div', { class: 'lbl' }, 'Avatar', h('span', { class: 'desc', text: 'Calculé à partir de votre nom.' })), h('div', { class: 'pc-avatar' }))));
+    P.paintAvatars();
+  }
+
   function renderSection(id, body) {
     body.replaceChildren();
     const title = (SECTIONS.find((s) => s[0] === id) || [])[1];
     body.append(h('h2', { text: title }));
     if (id === 'account') {
-      body.append(h('p', { class: 'lead', text: 'Plume est un logiciel local : il n’y a pas de compte en ligne. Ce nom accompagne vos commentaires, vos suggestions et les versions du document.' }));
-      const input = h('input', { type: 'text', value: P.state.author || '', maxlength: '60', 'aria-label': 'Nom affiché', spellcheck: 'false' });
-      const save = () => { const v = input.value.trim(); if (v) P.app.setAuthor(v.slice(0, 60)); };
-      input.addEventListener('change', save);
-      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } });
-      body.append(h('div', { class: 'set-group' },
-        h('div', { class: 'set-row' }, h('div', { class: 'lbl' }, 'Nom affiché', h('span', { class: 'desc', text: 'Visible dans les commentaires et les suggestions.' })), input),
-        h('div', { class: 'set-row' }, h('div', { class: 'lbl' }, 'Avatar', h('span', { class: 'desc', text: 'Calculé à partir de votre nom.' })), h('div', { class: 'pc-avatar' }))));
-      P.paintAvatars();
+      accountSection(body);
     } else if (id === 'shortcuts') {
       body.append(shortcutsTable());
     } else if (id === 'about') {
@@ -430,7 +487,7 @@
         h('div', {}, h('b', { text: 'Plume ' + (info.version || '') }),
           h('div', { class: 'muted', text: 'Traitement de texte local, simple et élégant.' }),
           h('div', { class: 'muted', text: [info.electron && 'Electron ' + info.electron, info.chrome && 'Chromium ' + info.chrome].filter(Boolean).join(' · ') }))));
-      body.append(h('p', { class: 'lead', text: 'Vos documents restent sur votre ordinateur (fichiers .plume). Plume n’envoie rien sur Internet, sauf si vous activez l’assistant IA (Paramètres → Intelligence artificielle) : seul le texte que vous soumettez à l’IA part alors vers le service que vous avez choisi (Claude ou Google Gemini), avec votre propre clé.' }));
+      body.append(h('p', { class: 'lead', text: 'Vos documents restent sur votre ordinateur (fichiers .plume) ou, si vous vous connectez, dans votre compte en ligne pour être synchronisés. Plume n’envoie rien d’autre sur Internet, sauf si vous activez l’assistant IA (Paramètres → Intelligence artificielle) : seul le texte que vous soumettez à l’IA part alors vers le service que vous avez choisi (Claude ou Google Gemini), avec votre propre clé.' }));
     } else {
       if (id === 'ai') aiTop(body);
       const groups = [];
@@ -477,7 +534,8 @@
       buttons.forEach((b) => b.setAttribute('aria-current', String(b.dataset.s === id)));
       renderSection(id, body);
     }
-    const close = () => { document.removeEventListener('keydown', onKey, true); overlay.remove(); };
+    const close = () => { document.removeEventListener('keydown', onKey, true); overlay.remove(); if (P.settings.closeDialog === close) P.settings.closeDialog = null; };
+    P.settings.closeDialog = close;
     const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); } };
     const dlg = h('div', { class: 'settings', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Paramètres' }, nav, body,
       h('button', { type: 'button', class: 'icon-btn set-close', title: 'Fermer', 'aria-label': 'Fermer', onclick: close }, svgIcon('i-close')));

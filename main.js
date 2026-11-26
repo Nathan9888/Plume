@@ -592,6 +592,38 @@ ipcMain.handle('recovery:write', guard((_e, text) => { fs.writeFileSync(recovery
 ipcMain.handle('recovery:read', guard(() => (fs.existsSync(recoveryFile()) ? fs.readFileSync(recoveryFile(), 'utf8') : null)));
 ipcMain.handle('recovery:clear', guard(() => { if (fs.existsSync(recoveryFile())) fs.unlinkSync(recoveryFile()); return true; }));
 
+// ---------- Compte en ligne (Supabase) ----------
+// Toutes les requêtes réseau partent d'ici ; la session (jetons) est chiffrée par le coffre de Windows et n'est jamais transmise à l'interface.
+const createCloud = require('./shared/cloud-core');
+const cloudCfg = (() => {
+  let c = {};
+  try { c = require('./shared/cloud-config.json'); } catch (_) { /* absent : synchronisation désactivée */ }
+  return { url: process.env.PLUME_CLOUD_URL || c.url || '', key: process.env.PLUME_CLOUD_KEY || c.key || '' };
+})();
+const cloudFile = () => userFile('cloud.json');
+const cloud = createCloud({
+  url: cloudCfg.url,
+  key: cloudCfg.key,
+  fetch: (u, o) => net.fetch(u, o),
+  load: () => {
+    try {
+      const v = JSON.parse(fs.readFileSync(cloudFile(), 'utf8')).s;
+      return v && safeStorage.isEncryptionAvailable() ? JSON.parse(safeStorage.decryptString(Buffer.from(v, 'base64'))) : null;
+    } catch (_) { return null; }
+  },
+  save: (sess) => {
+    if (!sess) { try { fs.unlinkSync(cloudFile()); } catch (_) { /* absente */ } return; }
+    if (!safeStorage.isEncryptionAvailable()) return;     // sans coffre sécurisé, la session reste en mémoire seulement
+    writeAtomic(cloudFile(), JSON.stringify({ s: safeStorage.encryptString(JSON.stringify(sess)).toString('base64') }));
+  },
+});
+ipcMain.handle('cloud:status', guard(async () => Object.assign(await cloud.status(), { kind: 'exe' })));
+ipcMain.handle('cloud:signIn', guard((_e, a) => cloud.signIn(a && a.email, a && a.password)));
+ipcMain.handle('cloud:signUp', guard((_e, a) => cloud.signUp(a && a.email, a && a.password)));
+ipcMain.handle('cloud:recover', guard((_e, email) => cloud.recover(email)));
+ipcMain.handle('cloud:signOut', guard(() => cloud.signOut()));
+ipcMain.handle('cloud:request', guard((_e, req) => cloud.request(req)));
+
 // ---------- Démarrage ----------
 if (gotLock) {
   pendingOpen = fileFromArgv(process.argv);

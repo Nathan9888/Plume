@@ -44,6 +44,15 @@ contextBridge.exposeInMainWorld('native', {
       try { return await call('ai:complete', Object.assign({}, opts, { id })); } finally { ipcRenderer.removeListener('ai:chunk', on); }
     },
   },
+  // Compte en ligne : les jetons restent dans le processus principal ; l'interface ne voit que l'état de la connexion.
+  cloud: {
+    status: () => call('cloud:status'),
+    signIn: (email, password) => call('cloud:signIn', { email: String(email || ''), password: String(password || '') }),
+    signUp: (email, password) => call('cloud:signUp', { email: String(email || ''), password: String(password || '') }),
+    recover: (email) => call('cloud:recover', String(email || '')),
+    signOut: () => call('cloud:signOut'),
+    request: (req) => call('cloud:request', req),
+  },
   recents: {
     list: () => call('recents:list'),
     add: (entry) => call('recents:add', entry),

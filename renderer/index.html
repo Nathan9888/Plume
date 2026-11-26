@@ -2,7 +2,7 @@
 <html lang="fr" data-theme="light" data-accent="blue">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; connect-src 'none'; form-action 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Plume</title>
   <link rel="stylesheet" href="styles.css">
@@ -62,6 +62,27 @@
     <symbol id="i-indent-inc" viewBox="0 0 24 24"><path d="M4 6h16M12 10h8M12 14h8M4 18h16M4 9l3 3-3 3"/></symbol>
     <symbol id="i-indent-dec" viewBox="0 0 24 24"><path d="M4 6h16M12 10h8M12 14h8M4 18h16M7 9l-3 3 3 3"/></symbol>
     <symbol id="i-clear" viewBox="0 0 24 24"><path d="M5 6.50V5h11v1.50M10.50 5v10M7.50 15h6M15 14l5 5M20 14l-5 5"/></symbol>
+    <symbol id="i-b-all" viewBox="0 0 24 24"><path d="M4.5 4.5h15v15h-15zM12 4.5v15M4.5 12h15"/></symbol>
+    <symbol id="i-b-outer" viewBox="0 0 24 24"><path d="M4.5 4.5h15v15h-15z"/><path d="M12 4.5v15M4.5 12h15" stroke-dasharray="1.5 2.5" opacity=".55"/></symbol>
+    <symbol id="i-b-inner" viewBox="0 0 24 24"><path d="M12 4.5v15M4.5 12h15"/><path d="M4.5 4.5h15v15h-15z" stroke-dasharray="1.5 2.5" opacity=".55"/></symbol>
+    <symbol id="i-b-h" viewBox="0 0 24 24"><path d="M4.5 12h15"/><path d="M4.5 4.5h15v15h-15zM12 4.5v15" stroke-dasharray="1.5 2.5" opacity=".55"/></symbol>
+    <symbol id="i-b-v" viewBox="0 0 24 24"><path d="M12 4.5v15"/><path d="M4.5 4.5h15v15h-15zM4.5 12h15" stroke-dasharray="1.5 2.5" opacity=".55"/></symbol>
+    <symbol id="i-b-top" viewBox="0 0 24 24"><path d="M4.5 4.5h15"/><path d="M4.5 4.5v15h15v-15M12 4.5v15M4.5 12h15" stroke-dasharray="1.5 2.5" opacity=".55"/></symbol>
+    <symbol id="i-b-bottom" viewBox="0 0 24 24"><path d="M4.5 19.5h15"/><path d="M4.5 19.5v-15h15v15M12 4.5v15M4.5 12h15" stroke-dasharray="1.5 2.5" opacity=".55"/></symbol>
+    <symbol id="i-b-left" viewBox="0 0 24 24"><path d="M4.5 4.5v15"/><path d="M4.5 4.5h15v15h-15M12 4.5v15M4.5 12h15" stroke-dasharray="1.5 2.5" opacity=".55"/></symbol>
+    <symbol id="i-b-right" viewBox="0 0 24 24"><path d="M19.5 4.5v15"/><path d="M19.5 4.5h-15v15h15M12 4.5v15M4.5 12h15" stroke-dasharray="1.5 2.5" opacity=".55"/></symbol>
+    <symbol id="i-b-none" viewBox="0 0 24 24"><path d="M4.5 4.5h15v15h-15zM12 4.5v15M4.5 12h15" stroke-dasharray="1.5 2.5" opacity=".6"/></symbol>
+    <symbol id="i-b-width" viewBox="0 0 24 24"><path d="M4 6h16" stroke-width="1"/><path d="M4 12h16" stroke-width="2.2"/><path d="M4 18.5h16" stroke-width="3.6"/></symbol>
+    <symbol id="i-b-dash" viewBox="0 0 24 24"><path d="M4 6.5h16"/><path d="M4 12h3.500M10.250 12h3.500M16.500 12h3.500"/><path d="M4 17.500h.1M8 17.500h.1M12 17.500h.1M16 17.500h.1M20 17.500h.1" stroke-width="2.6"/></symbol>
+    <symbol id="i-pen" viewBox="0 0 24 24"><path d="M4 20l1-4L16.500 4.500a2.100 2.100 0 0 1 3 3L8 19zM14.500 6.500l3 3"/></symbol>
+    <symbol id="i-fill" viewBox="0 0 24 24"><path d="M5.500 12.500l6-6 7 7-6 6zM11.500 6.500L9 4M19 15.500s2 2.200 2 3.600a2 2 0 0 1-4 0c0-1.400 2-3.600 2-3.600z"/></symbol>
+    <symbol id="i-va-top" viewBox="0 0 24 24"><path d="M4.500 5h15M8 10h8M8 14h5"/></symbol>
+    <symbol id="i-va-mid" viewBox="0 0 24 24"><path d="M4.500 12h15M8 8h8M8 16h5" opacity=".9"/></symbol>
+    <symbol id="i-va-bottom" viewBox="0 0 24 24"><path d="M4.500 19h15M8 10h8M8 14h5"/></symbol>
+    <symbol id="i-merge" viewBox="0 0 24 24"><path d="M3.500 6h6.500v12H3.500zM14 6h6.500v12H14zM7.500 12h9M10 9.500L7.500 12l2.500 2.500M14 9.500l2.500 2.500-2.500 2.500"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM6 11a6 6 0 0 0 12 0M12 17v4M9 21h6"/></symbol>
+    <symbol id="i-crop" viewBox="0 0 24 24"><path d="M6.500 3v12.500a1.500 1.500 0 0 0 1.500 1.500H21M3 6.500h12.500A1.500 1.500 0 0 1 17 8v13"/></symbol>
+    <symbol id="i-replace" viewBox="0 0 24 24"><path d="M4 8h13l-3-3M20 16H7l3 3M4 8l3 3M20 16l-3-3" opacity="0"/><rect x="3.500" y="5" width="17" height="14" rx="2"/><path d="M3.500 15l4.500-4.500 4 4 2.500-2.500 6 6M8.500 9.500h.01"/></symbol>
     <symbol id="i-table" viewBox="0 0 24 24"><path d="M5 5h14a1.50 1.50 0 0 1 1.50 1.50v11A1.50 1.50 0 0 1 19 19H5a1.50 1.50 0 0 1-1.50-1.50v-11A1.50 1.50 0 0 1 5 5zM3.50 10h17M3.50 14.50h17M9.50 5v14M14.50 5v14"/></symbol>
     <symbol id="i-hr" viewBox="0 0 24 24"><path d="M4 12h16"/></symbol>
     <symbol id="i-pagebreak" viewBox="0 0 24 24"><path d="M5 4h14M5 20h14M4 12h2.50M10.80 12h2.40M17.50 12H20"/></symbol>
@@ -71,6 +92,7 @@
     <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.6" fill="currentColor" stroke="none"/></symbol>
     <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.50 7a1.50 1.50 0 0 1 1.50-1.50h4l2 2.50h8A1.50 1.50 0 0 1 20.50 9.50V17a1.50 1.50 0 0 1-1.50 1.50H5A1.50 1.50 0 0 1 3.50 17z"/></symbol>
     <symbol id="i-person" viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.50 20c.5-3.50 3.50-5.50 7.50-5.50s7 2 7.50 5.50"/></symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7.50 18.50a4 4 0 0 1-.60-7.95 5.50 5.50 0 0 1 10.60 1.45 3.25 3.25 0 0 1-.50 6.50z"/></symbol>
     <symbol id="i-lock" viewBox="0 0 24 24"><path d="M6.50 11h11a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1zM8.50 11V8a3.50 3.50 0 0 1 7 0v3"/></symbol>
     <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.50A8 8 0 0 1 9.50 4 8 8 0 1 0 20 14.50z"/></symbol>
     <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.60 5.60 7 7M17 17l1.40 1.40M5.60 18.40 7 17M17 7l1.40-1.40"/></symbol>
@@ -108,7 +130,7 @@
       <div id="home-scroll">
         <header class="home-head">
           <div class="home-brand"><span class="brand-tile"><svg class="ic"><use href="#i-feather"/></svg></span><span>Plume</span></div>
-          <label class="home-search"><svg class="ic"><use href="#i-search"/></svg><input id="home-q" type="search" placeholder="Rechercher dans vos documents récents" autocomplete="off" spellcheck="false" aria-label="Rechercher"></label>
+          <label class="home-search"><svg class="ic"><use href="#i-search"/></svg><input id="home-q" type="search" placeholder="Rechercher dans vos documents" autocomplete="off" spellcheck="false" aria-label="Rechercher"></label>
           <button type="button" class="avatar-btn" data-profile title="Compte et paramètres" aria-label="Compte et paramètres"><span class="avatar">?</span></button>
         </header>
 
@@ -120,6 +142,14 @@
             </div>
             <div id="tpl-grid" class="tpl-grid collapsed"></div>
           </div>
+        </section>
+
+        <section class="recent" id="cloud-sec" hidden>
+          <div class="recent-head">
+            <h2>En ligne <span class="cloud-count" id="cloud-count"></span></h2>
+            <div class="recent-tools"><span class="cloud-state" id="cloud-state" role="status"></span></div>
+          </div>
+          <div id="cloud-list" class="grid"></div>
         </section>
 
         <section class="recent">
@@ -179,7 +209,7 @@
                 <option value="h3">Titre 3</option>
                 <option value="blockquote">Citation</option>
               </select>
-              <select id="tb-font" data-menu="font" title="Police" aria-label="Police">
+              <select id="tb-font" data-menu="font" data-native="1" title="Police" aria-label="Police">
                 <option>Calibri</option><option>Arial</option><option>Times New Roman</option>
                 <option>Georgia</option><option>Verdana</option><option>Segoe UI</option><option>Courier New</option>
               </select>
@@ -231,6 +261,7 @@
               <button type="button" class="txt" data-tbl="delTable" title="Supprimer le tableau">Supprimer le tableau</button>
               <button type="button" class="txt" data-tbl="options" title="Bordures, largeur, ligne de titre">Options du tableau</button>
             </div>
+            <div class="grp" id="imgbar" hidden></div>
           </div>
           <button type="button" id="tb-more" title="Plus d'outils" aria-label="Plus d'outils" hidden><svg class="ic"><use href="#i-more"/></svg></button>
           <button type="button" id="modebtn" title="Mode : édition, suggestion ou lecture seule" aria-haspopup="menu">
@@ -302,8 +333,17 @@
 <script src="docx.js"></script>
 <script src="markdown.js"></script>
 <script src="editor.js"></script>
+<script src="gfonts.js"></script>
+<script src="fonts.js"></script>
+<script src="styles.js"></script>
+<script src="tables.js"></script>
+<script src="tools.js"></script>
+<script src="images.js"></script>
+<script src="pages.js"></script>
 <script src="review.js"></script>
 <script src="store.js"></script>
+<script src="sync.js"></script>
+<script src="auth.js"></script>
 <script src="panels.js"></script>
 <script src="dlp.js"></script>
 <script src="templates.js"></script>

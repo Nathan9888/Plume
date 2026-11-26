@@ -34,7 +34,6 @@
     const toEd = () => P.restoreSel();
     const edit = (cmd) => () => { toEd(); const n = nat(); if (n && n.editCmd) n.editCmd(cmd); };
     const act = (name) => () => { toEd(); if (P.actions[name]) P.actions[name](); };
-    const tbl = (op) => () => P.tableOp(op);
     const list = [];
 
     if (ctx.spell) {
@@ -63,28 +62,10 @@
 
     const ti = P.tableInfo && P.tableInfo();
     if (ti && !ro) {
-      list.push(
-        '-',
-        { label: 'Insérer une ligne de titre', disabled: ti.hasHeader, action: tbl('addHeader') },
-        '-',
-        { label: 'Insérer une ligne au-dessus', action: tbl('addRowAbove') },
-        { label: 'Insérer une ligne en dessous', action: tbl('addRow') },
-        { label: 'Insérer une colonne à gauche', action: tbl('addColLeft') },
-        { label: 'Insérer une colonne à droite', action: tbl('addCol') },
-        '-',
-        { label: 'Supprimer la ligne', action: tbl('delRow') },
-        { label: 'Supprimer la colonne', action: tbl('delCol') },
-        { label: 'Supprimer le tableau', action: tbl('delTable') },
-        '-',
-        { label: 'Diviser la cellule', disabled: !ti.merged, action: tbl('split') },
-        { label: 'Trier le tableau', items: [
-          { label: 'Selon cette colonne, de A à Z', action: tbl('sortAsc') },
-          { label: 'Selon cette colonne, de Z à A', action: tbl('sortDesc') },
-        ] },
-        { label: 'Répartir les lignes', action: tbl('distRows') },
-        { label: 'Répartir les colonnes', action: tbl('distCols') },
-        { label: 'Options du tableau…', icon: 'i-table', action: tbl('options') },
-      );
+      list.push('-', ...P.tables.menuItems());
+    }
+    if (P.images && P.images.selected()) {
+      list.push('-', { label: 'Image', icon: 'i-image', items: () => P.images.menuItems() });
     }
 
     const fmt = (cmd) => () => P.exec(cmd, null, false);
@@ -104,8 +85,7 @@
           { label: 'Barré', icon: 'i-strike', disabled: ro, action: fmt('strikeThrough') },
           { label: 'Effacer la mise en forme', hint: 'Ctrl+\\', icon: 'i-clear', disabled: ro, action: fmt('removeFormat') },
         ] },
-        { label: 'Style de paragraphe', items: [['p', 'Texte normal'], ['h1', 'Titre 1'], ['h2', 'Titre 2'], ['h3', 'Titre 3'], ['blockquote', 'Citation']]
-          .map(([v, l]) => ({ label: l, disabled: ro, action: () => P.setBlock(v) })) },
+        { label: 'Style de paragraphe', items: () => P.styles.menuItems() },
         { label: 'Insérer', disabled: ro, items: [
           { label: 'Tableau…', icon: 'i-table', action: act('table') },
           { label: 'Image…', icon: 'i-image', action: act('image') },

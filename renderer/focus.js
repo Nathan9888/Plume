@@ -1,5 +1,5 @@
 /* Plume — mode concentration : seule la page reste à l'écran, avec le temps de lecture et, si on le souhaite,
-   les autres paragraphes estompés. Échap (ou Ctrl+Maj+C) pour revenir. */
+   les autres paragraphes estompés. Échap (ou Ctrl+Alt+C) pour revenir. */
 (function () {
   'use strict';
   const { $ } = P;
@@ -74,7 +74,7 @@
 
   document.addEventListener('keydown', (e) => {
     if (document.querySelector('.overlay')) return;
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'c') { e.preventDefault(); P.focus.toggle(); return; }
+    if ((e.ctrlKey || e.metaKey) && e.altKey && !e.shiftKey && e.key.toLowerCase() === 'c') { e.preventDefault(); P.focus.toggle(); return; }
     if (e.key === 'Escape' && on && !e.defaultPrevented && !P.pop.isOpen() && $('#findbar').hidden && $('#atmenu').hidden) exit();
   }, true);
 

@@ -79,7 +79,6 @@
     if (!b || readOnly()) return;
     if (b.dataset.cmd) P.exec(b.dataset.cmd, null, /^justify/.test(b.dataset.cmd));
     else if (b.dataset.act) (actions[b.dataset.act] || (() => {}))();
-    else if (b.dataset.tbl) tableOp(b.dataset.tbl);
     else if (b.dataset.size) stepSize(parseInt(b.dataset.size, 10));
   });
 
@@ -93,8 +92,7 @@
     updateToolbar();
   }
   P.setBlock = setBlock;
-  $('#tb-block').addEventListener('change', (e) => setBlock(e.target.value));
-  $('#tb-font').addEventListener('change', (e) => P.exec('fontName', e.target.value, true));
+  $('#tb-font').addEventListener('change', (e) => { if (P.fonts) P.fonts.apply(e.target.value); else P.exec('fontName', e.target.value, true); });
 
   const sizeBox = $('#tb-size');
   const clampSize = (n) => Math.max(6, Math.min(96, n));
@@ -136,13 +134,14 @@
     });
     let blk = 'p';
     try { blk = String(document.queryCommandValue('formatBlock') || 'p').toLowerCase(); } catch (_) { /* ignoré */ }
-    $('#tb-block').value = ['h1', 'h2', 'h3', 'blockquote'].includes(blk) ? blk : 'p';
+    if (P.styles) P.styles.reflect(); else $('#tb-block').value = ['h1', 'h2', 'h3', 'blockquote'].includes(blk) ? blk : 'p';
     const el = sel.anchorNode.nodeType === 3 ? sel.anchorNode.parentElement : sel.anchorNode;
     if (el && el.nodeType === 1) {
       const cs = getComputedStyle(el);
       const fam = cs.fontFamily.split(',')[0].replace(/["']/g, '').trim();
       const fsel = $('#tb-font');
-      if (Array.from(fsel.options).some((o) => o.value === fam)) fsel.value = fam;
+      if (P.fonts && fam) P.fonts.reflect(fam);
+      else if (Array.from(fsel.options).some((o) => o.value === fam)) fsel.value = fam;
       const pt = String(Math.round(parseFloat(cs.fontSize) * 0.75));
       if (document.activeElement !== sizeBox) sizeBox.value = pt;
     }
@@ -171,7 +170,7 @@
       const words = P.wordCount();
       $('#st-count').textContent = `${words} mot${words > 1 ? 's' : ''} · ${text.replace(/\s/g, '').length} caractères · ${P.readingLabel(words)}`;
       if (P.focusRefresh) P.focusRefresh();
-      $('#st-pages').textContent = state.pageless ? '' : `≈ ${Math.max(1, Math.ceil((ed.offsetHeight - 192) / 864))} page(s)`;
+      $('#st-pages').textContent = state.pageless ? '' : P.pageLabel();
     }, 150);
   };
 
@@ -212,121 +211,7 @@
     P.markDirty();
   }
 
-  // ---------- Tableaux ----------
-  const tableHTML = (rows, cols) =>
-    '<table><tbody>' + ('<tr>' + '<td><br></td>'.repeat(cols) + '</tr>').repeat(rows) + '</tbody></table>';
-
-  async function insertTable() {
-    P.saveSel();
-    const r = await P.modal({
-      title: 'Insérer un tableau',
-      fields: [
-        { id: 'rows', label: 'Lignes', type: 'number', value: 3, min: 1, max: 50 },
-        { id: 'cols', label: 'Colonnes', type: 'number', value: 3, min: 1, max: 12 },
-      ],
-    });
-    if (!r) return;
-    const rows = Math.max(1, Math.min(50, parseInt(r.values.rows, 10) || 3));
-    const cols = Math.max(1, Math.min(12, parseInt(r.values.cols, 10) || 3));
-    P.insertHTML(tableHTML(rows, cols) + '<p><br></p>');
-  }
-
-  const cellsOf = (row) => Array.from(row.cells);
-  const colCount = (table) => Math.max(1, ...Array.from(table.rows).map((r) => cellsOf(r).reduce((n, c) => n + Math.max(1, c.colSpan || 1), 0)));
-  const isHeaderRow = (row) => !!row && row.cells.length > 0 && cellsOf(row).every((c) => c.tagName === 'TH');
-  const emptyLike = (c) => { const n = document.createElement(c.tagName === 'TH' ? 'td' : c.tagName); n.innerHTML = '<br>'; return n; };
-
-  function sortTable(table, cell, dir) {
-    if (Array.from(table.rows).some((r) => cellsOf(r).some((c) => c.colSpan > 1 || c.rowSpan > 1))) { P.toast('Le tri n’est pas possible dans un tableau qui contient des cellules fusionnées.'); return; }
-    const idx = cell.cellIndex;
-    const body = cell.parentElement.parentElement;
-    const rows = Array.from(body.rows).filter((r) => !isHeaderRow(r));
-    const key = (r) => (r.cells[idx] ? r.cells[idx].textContent.trim() : '');
-    const cmp = new Intl.Collator('fr', { numeric: true, sensitivity: 'base' });
-    rows.slice().sort((a, b) => dir * cmp.compare(key(a), key(b))).forEach((r) => body.append(r));
-  }
-
-  async function tableOptions(table) {
-    const cls = table.classList.contains('tbl-none') ? 'none' : table.classList.contains('tbl-thick') ? 'thick' : 'thin';
-    const r = await P.modal({
-      title: 'Options du tableau',
-      fields: [
-        { id: 'border', label: 'Bordures', type: 'select', options: [{ value: 'thin', label: 'Fines' }, { value: 'thick', label: 'Épaisses' }, { value: 'none', label: 'Aucune' }], value: cls },
-        { id: 'width', label: 'Largeur', type: 'select', options: [{ value: 'auto', label: 'Selon le contenu' }, { value: 'full', label: 'Pleine largeur de la page' }], value: table.getAttribute('width') === '100%' ? 'full' : 'auto' },
-        { id: 'head', label: 'Première ligne', type: 'select', options: [{ value: 'no', label: 'Ligne ordinaire' }, { value: 'yes', label: 'Ligne de titre (en gras, fond gris)' }], value: isHeaderRow(table.rows[0]) ? 'yes' : 'no' },
-      ],
-      ok: 'Appliquer',
-    });
-    if (!r) return;
-    table.classList.remove('tbl-none', 'tbl-thick');
-    if (r.values.border === 'none') table.classList.add('tbl-none');
-    else if (r.values.border === 'thick') table.classList.add('tbl-thick');
-    if (!table.getAttribute('class')) table.removeAttribute('class');
-    if (r.values.width === 'full') table.setAttribute('width', '100%'); else table.removeAttribute('width');
-    const first = table.rows[0];
-    const wantHead = r.values.head === 'yes';
-    if (first && wantHead !== isHeaderRow(first)) {
-      cellsOf(first).forEach((c) => {
-        const n = document.createElement(wantHead ? 'th' : 'td');
-        Array.from(c.attributes).forEach((a) => n.setAttribute(a.name, a.value));
-        while (c.firstChild) n.append(c.firstChild);
-        c.replaceWith(n);
-      });
-    }
-    P.markDirty();
-  }
-
-  function tableOp(op) {
-    P.restoreSel();
-    const cell = closestFromSel('td, th');
-    const table = closestFromSel('table');
-    if (!cell || !table) return;
-    const row = cell.parentElement;
-    if (op === 'addRow' || op === 'addRowAbove') {
-      const nr = document.createElement('tr');
-      cellsOf(row).forEach((c) => { const n = emptyLike(c); if (c.colSpan > 1) n.colSpan = c.colSpan; nr.append(n); });
-      if (op === 'addRow') row.after(nr); else row.before(nr);
-    } else if (op === 'addHeader') {
-      const nr = document.createElement('tr');
-      for (let i = 0; i < colCount(table); i++) { const th = document.createElement('th'); th.innerHTML = '<br>'; nr.append(th); }
-      (table.tBodies[0] || table).prepend(nr);
-    } else if (op === 'addCol' || op === 'addColLeft') {
-      const idx = cell.cellIndex;
-      Array.from(table.rows).forEach((r) => { const c = r.cells[idx]; if (c) { if (op === 'addCol') c.after(emptyLike(c)); else c.before(emptyLike(c)); } });
-    } else if (op === 'delRow') {
-      if (table.rows.length <= 1) table.remove(); else row.remove();
-    } else if (op === 'delCol') {
-      const idx = cell.cellIndex;
-      if (row.cells.length <= 1) table.remove();
-      else Array.from(table.rows).forEach((r) => { if (r.cells[idx]) r.cells[idx].remove(); });
-    } else if (op === 'delTable') {
-      table.remove();
-    } else if (op === 'split') {
-      const n = Math.max(1, cell.colSpan || 1);
-      if (n > 1) { cell.removeAttribute('colspan'); for (let i = 1; i < n; i++) cell.after(emptyLike(cell)); }
-    } else if (op === 'sortAsc' || op === 'sortDesc') {
-      sortTable(table, cell, op === 'sortAsc' ? 1 : -1);
-    } else if (op === 'distCols') {
-      const n = colCount(table);
-      table.setAttribute('width', '100%');
-      Array.from(table.rows).forEach((r) => cellsOf(r).forEach((c) => c.setAttribute('width', (100 * Math.max(1, c.colSpan || 1) / n).toFixed(2) + '%')));
-    } else if (op === 'distRows') {
-      const m = Math.round(Math.max(...Array.from(table.rows).map((r) => r.getBoundingClientRect().height)));
-      Array.from(table.rows).forEach((r) => r.setAttribute('height', String(m)));
-    } else if (op === 'options') {
-      tableOptions(table);
-      return;
-    }
-    if (!ed.firstElementChild) ed.innerHTML = '<p><br></p>';
-    ensureTrailing();
-    P.markDirty();
-    P.updateCounts();
-    updateToolbar();
-  }
-
-  P.tableOp = tableOp;
-  P.inTable = () => !!closestFromSel('td, th');
-  P.tableInfo = () => { const c = closestFromSel('td, th'); return c ? { merged: (c.colSpan || 1) > 1, hasHeader: isHeaderRow(c.closest('table').rows[0]) } : null; };
+  // ---------- Tableaux : voir tables.js (P.tables, P.tableOp, P.inTable, P.tableInfo) ----------
 
   // ---------- Insertions simples ----------
   async function insertLink() {
@@ -362,7 +247,7 @@
     at: () => { P.saveSel(); openAtMenu(null, '@'); },
     link: insertLink,
     image: insertImage,
-    table: insertTable,
+    table: () => { if (P.tables) P.tables.picker(); },
     hr: () => P.exec('insertHorizontalRule'),
     pagebreak: () => P.insertHTML('<div class="pagebreak" contenteditable="false"></div><p><br></p>'),
     checklist,

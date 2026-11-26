@@ -70,7 +70,7 @@ texte moderne (menus, barre d'outils, plan, panneau latéral).
   derrière un bouton « … » quand la fenêtre est étroite. Le titre du document est centré dans l'en-tête.
 - **Plan du document** à gauche, **commentaires / suggestions / versions / variables** à droite (contrôle segmenté).
 - **Palette de commandes** (`Ctrl+Maj+P`) : recherche instantanée de toutes les actions, réglages et modèles.
-- **Mode concentration** (`Ctrl+Maj+C`, `Échap` pour quitter) : tout disparaît sauf la page ; seul le paragraphe en cours reste
+- **Mode concentration** (`Ctrl+Alt+C`, `Échap` pour quitter) : tout disparaît sauf la page ; seul le paragraphe en cours reste
   bien visible, et une pastille discrète affiche le temps de lecture et le nombre de mots.
 - **Barre flottante** : en sélectionnant du texte, une pastille apparaît sous la sélection (gras, italique, souligné, lien,
   surlignage, **commentaire**, **émoji**). Le commentaire s'écrit dans une bulle, avec le passage concerné surligné ;
@@ -89,10 +89,31 @@ texte moderne (menus, barre d'outils, plan, panneau latéral).
 
 ## Ce que Plume fait
 
-**Édition** — styles de titres, polices, tailles, couleurs, surlignage, listes, listes de tâches, tableaux
-(ajout/suppression de lignes et colonnes), images, liens, sauts de page, recherche et remplacement,
-plan du document, **correcteur orthographique intégré** (français et anglais, hors connexion, identique dans les deux versions).
-Deux affichages : **Pages** (format Lettre, repères de saut de page) et **Sans pages** (surface continue).
+**Édition** — styles de titres, polices, tailles, couleurs, surlignage, listes, listes de tâches, tableaux, images, liens, sauts de page,
+recherche et remplacement, plan du document, **correcteur orthographique intégré** (français et anglais, hors connexion, identique dans les deux versions).
+
+**Vraies pages (comme Google Docs)** — le document est dessiné sur de **vraies feuilles Lettre séparées par un espace gris**, avec des marges de 2,5 cm
+sur chaque page ; le texte passe d'une page à l'autre **ligne par ligne**, un tableau se coupe **entre deux lignes**, un saut de page manuel
+(`Insertion → Saut de page`) envoie la suite en haut de la feuille suivante, et la barre d'état indique le nombre de pages. Le texte n'est jamais modifié pour
+cela (la découpe est purement visuelle) : `Ctrl+Z`, la sélection et l'enregistrement ne changent pas. Le second affichage, **Sans pages**, reste une surface continue.
+
+**Polices à l'infini** — le menu *Police* propose vos polices récentes et « Autres polices… » : le catalogue Google Fonts (près de 1 900 familles, avec leurs graisses)
+se charge à la demande ; les polices utilisées sont rechargées à l'ouverture du document. Les polices installées sur l'ordinateur sont détectées aussi.
+
+**Styles de paragraphe** — Texte normal, Titre, Sous-titre, Titres 1 à 6 : *Mettre à jour le style pour correspondre*, *Enregistrer comme styles par défaut*, *Réinitialiser les styles*.
+
+**Tableaux complets** — insertion par grille, ajout/suppression/déplacement de lignes et colonnes, **fusion et scission de cellules**, sélection de plusieurs cellules à la souris,
+bordures (couleur, épaisseur, côtés) et **redimensionnement des bordures par glissement**, fond de cellule, alignements, marges, ligne d'en-tête, tri, propriétés du tableau, export Word.
+
+**Images** — barre d'options dès qu'on clique sur une image : **recadrer**, bordure, rotation, remplacer, texte alternatif, rétablir la taille, options d'image.
+
+**Menu Outils (comme Google Docs)** — nombre de mots (`Ctrl+Maj+C`), **saisie vocale** (`Ctrl+Maj+S`, Chrome/Edge/Safari ; dans l'application Windows elle n'est pas disponible : utilisez `Win+H`),
+*Définir* le mot sélectionné (`Ctrl+Maj+Y`), orthographe, mode concentration (`Ctrl+Alt+C`).
+
+**Compte et synchronisation (Supabase)** — voir `supabase/schema.sql` : après avoir créé un projet Supabase gratuit, collez son adresse et sa clé publique (*anon / publishable*) dans
+`shared/cloud-config.json`, exécutez `schema.sql`, puis reconstruisez. Plume affiche alors une page de connexion (courriel + mot de passe) au premier lancement, et **le .exe, le .html et le site**
+partagent les mêmes documents, réglages et profil (les clés d'IA ne sont **jamais** synchronisées ; les documents ne sont pas chiffrés de bout en bout ; un document protégé par mot de passe reste local).
+N'utilisez jamais la clé *service_role* (secrète). Sans configuration, Plume reste 100 % local.
 
 **Correction orthographique façon Google Docs** — les mots inconnus sont soulignés d'un trait ondulé rouge. Un clic sur un mot
 ouvre une pastille : la **suggestion** (un clic la remplace), **Ignorer**, **commentaire**, et un menu `⋮` (autres suggestions,
@@ -180,17 +201,17 @@ Ouverture de fichiers `.plume`, `.html` et `.txt`.
 | Ouvrir un fichier Word (`.docx`) | **Pas encore.** On peut exporter *vers* Word, pas l'ouvrir. Astuce : dans Word, enregistrez en `.html` puis ouvrez-le dans Plume. |
 
 Limites connues : en mode Suggestion, seuls le texte tapé, collé et supprimé est suivi (pas la mise en forme, les
-objets insérés ni les sauts de paragraphe) ; les repères de pages sont indicatifs (la vraie pagination se voit dans
-l'aperçu PDF) ; annuler (`Ctrl+Z`) ne défait pas les actions faites dans les panneaux (commentaire résolu,
+objets insérés ni les sauts de paragraphe) ; les en-têtes et pieds de page ne sont pas encore pris en charge et une ligne de tableau plus haute qu'une page déborde ; annuler (`Ctrl+Z`) ne défait pas les actions faites dans les panneaux (commentaire résolu,
 suggestion acceptée) — utilisez l'historique des versions. L'historique d'annulation d'un document est aussi remis à zéro
 quand on change d'onglet (le contenu, lui, est conservé intact).
 
 ## Raccourcis
 
-`Ctrl+N` / `Ctrl+T` Nouveau · `Ctrl+O` Ouvrir · `Ctrl+S` Enregistrer · `Ctrl+Maj+S` Enregistrer sous · `Ctrl+P` Imprimer ·
+`Ctrl+N` / `Ctrl+T` Nouveau · `Ctrl+O` Ouvrir · `Ctrl+S` Enregistrer · `F12` / `Ctrl+Alt+S` Enregistrer sous · `Ctrl+P` Imprimer ·
 `Ctrl+W` Fermer l'onglet · `Ctrl+Tab` Onglet suivant · `Alt+Début` Accueil · `Ctrl+F` / `Ctrl+H` Rechercher / remplacer ·
 `Ctrl+K` Lien · `Ctrl+\` Effacer la mise en forme · `Ctrl+Alt+M` Commenter · `@` Insérer · `/` Blocs ·
-`Ctrl+Maj+P` Palette de commandes · `Ctrl+Maj+C` Mode concentration · `Ctrl+Alt+X` Vérification de l'orthographe ·
+`Ctrl+Maj+P` Palette de commandes · `Ctrl+Alt+C` Mode concentration · `Ctrl+Maj+C` Nombre de mots · `Ctrl+Maj+S` Saisie vocale ·
+`Ctrl+Maj+Y` Définir · `Ctrl+Alt+X` Vérification de l'orthographe ·
 `Ctrl++` / `Ctrl+-` / `Ctrl+0` Zoom de la page · `Ctrl+Maj+F` Mode compact · `F11` Plein écran · `Ctrl+/` Liste des raccourcis
 
 ## Organisation du code

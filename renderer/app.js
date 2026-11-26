@@ -23,6 +23,7 @@
     state.author = name;
     try { localStorage.setItem('plume.author', name); } catch (_) { /* ignoré */ }
     P.paintAvatars();
+    if (P.sync && P.sync.profileChanged) P.sync.profileChanged();
   }
   async function askAuthor(first) {
     const r = await P.modal({
@@ -38,11 +39,11 @@
   app.askAuthor = askAuthor;
 
   /* ---------- Onglets : un onglet « Accueil » fixe + un onglet par document ---------- */
-  const DOC_KEYS = ['path', 'title', 'dirty', 'password', 'pageless', 'mode', 'variables', 'comments', 'versions', 'assets'];
+  const DOC_KEYS = ['path', 'title', 'dirty', 'password', 'pageless', 'mode', 'variables', 'comments', 'versions', 'assets', 'cloud', 'touched', 'styles'];
   const tabs = [];            // { id, st: état du document, html, scroll }
   let activeId = 'home';
 
-  const blankDoc = () => ({ path: null, title: 'Sans titre', dirty: false, password: null, pageless: false, mode: 'edit', variables: {}, comments: [], versions: [], assets: {} });
+  const blankDoc = () => ({ path: null, title: 'Sans titre', dirty: false, password: null, pageless: false, mode: 'edit', variables: {}, comments: [], versions: [], assets: {}, cloud: null, touched: false, styles: P.styles ? P.styles.fresh() : {} });
   const tabById = (id) => tabs.find((t) => t.id === id) || null;
   const current = () => tabById(activeId);
   const src = (t) => (t.id === activeId ? state : t.st);       // l'onglet actif vit dans l'état « vivant »
@@ -67,6 +68,8 @@
     for (const k of DOC_KEYS) state[k] = t.st[k];
     P.resetSel();
     ed.innerHTML = t.html;
+    if (P.styles) P.styles.render();
+    if (P.fonts) P.fonts.scan();
     $('#title').value = state.title;
     $('#findbar').hidden = true;
     setPageless(state.pageless);
@@ -212,6 +215,8 @@
     showView('doc');
     renderTabs();
     ed.focus();
+    const pend = tabById(id).pending;
+    if (pend) { tabById(id).pending = null; applyRemote(pend.row, pend.data); }
   }
   app.activate = activate;
   app.goHome = () => activate('home');
@@ -280,19 +285,32 @@
 
   /* ---------- Barre de titre du document, état ---------- */
   let rev = 0;
+  /** Texte de la barre d'état : tient compte de l'enregistrement en ligne (en cours, hors ligne, en attente). */
+  function saveText() {
+    const c = state.cloud && P.sync;
+    if (c) {
+      if (state.dirty) return P.sync.status === 'offline' ? 'Hors ligne : modifications conservées ici' : P.sync.status === 'error' ? 'Enregistrement en ligne impossible pour l’instant' : 'Modifications en cours d’enregistrement…';
+      return 'Enregistré en ligne';
+    }
+    return state.dirty ? 'Modifications non enregistrées' : state.path ? 'Enregistré' : 'Nouveau document';
+  }
+
   function refreshChrome() {
     if (!inDoc()) { document.title = 'Plume'; return; }
     const t = state.title || 'Sans titre';
     document.title = (state.dirty ? '• ' : '') + t + ' — Plume';
-    $('#savestate').textContent = state.dirty ? 'Modifications non enregistrées' : state.path ? 'Enregistré' : 'Nouveau document';
+    $('#savestate').textContent = saveText();
     $('#st-lock').textContent = state.password ? '🔒 Chiffré' : '';
     $('#st-lock').title = state.password ? 'Document chiffré (AES-256). Pas de récupération automatique pour un document chiffré.' : '';
     patchTab();
   }
 
   let panelTimer = null;
+  let lastEdit = 0;
   P.onDirty = () => {
     rev++;
+    lastEdit = Date.now();
+    state.touched = true;
     refreshChrome();
     clearTimeout(panelTimer);
     panelTimer = setTimeout(() => {
@@ -336,6 +354,7 @@
   function setPageless(on) {
     state.pageless = !!on;
     document.body.classList.toggle('pageless', !!on);
+    if (P.pages) P.pages.refresh();
     P.updateCounts();
   }
   app.setPageless = (on) => { setPageless(on); P.markDirty(); };
@@ -555,6 +574,8 @@
     state.versions = [];
     state.assets = {};
     state.pageless = false;
+    state.styles = P.styles ? P.styles.fresh() : {};
+    if (P.styles) P.styles.render();
   }
 
   /** Lit un fichier (déchiffre si besoin). Retourne null si l'utilisateur annule. */
@@ -659,9 +680,223 @@
   }
   app.openDoc = openDoc;
 
+  /* ---------- Documents en ligne ---------- */
+  const saving = new Set();
+  const retryAt = new Map();
+  const lastPush = new Map();
+  const canCloud = () => !!(P.sync && P.sync.can());
+  /** Un nouveau document (ni fichier, ni mot de passe) part en ligne quand on est connecté et que le réglage le demande. */
+  const wantCloud = (s) => canCloud() && cfg().get('saveWhere') === 'cloud' && !s.path && !s.password;
+  app.isCloud = () => !!(inDoc() && state.cloud);
+  app.canCloud = canCloud;
+
+  const newId = () => {
+    try { if (crypto.randomUUID) return crypto.randomUUID(); } catch (_) { /* contexte non sécurisé */ }
+    const b = crypto.getRandomValues(new Uint8Array(16));
+    b[6] = (b[6] & 15) | 64; b[8] = (b[8] & 63) | 128;
+    const x = Array.from(b, (n) => n.toString(16).padStart(2, '0')).join('');
+    return x.slice(0, 8) + '-' + x.slice(8, 12) + '-' + x.slice(12, 16) + '-' + x.slice(16, 20) + '-' + x.slice(20);
+  };
+  const previewOf = (html) => {
+    try { return (new DOMParser().parseFromString(String(html), 'text/html').body.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 240); } catch (_) { return ''; }
+  };
+  function repaint(t) {
+    const el = tabNode(t.id);
+    if (el) paintTab(el, t);
+    if (t.id === activeId) refreshChrome();
+  }
+
+  /** Doc modifié sur un autre appareil pendant qu'on avait des changements : la version d'ici devient une copie « (conflit) ». */
+  async function resolveConflict(t, data, remote) {
+    const base = data.title || 'Sans titre';
+    if (remote) data.title = base + ' (conflit)';
+    const id = newId();
+    const r = await P.sync.put({ id, rev: 0, title: data.title, preview: previewOf(data.html), body: JSON.stringify(data) });
+    if (!r.ok) return r;
+    src(t).title = data.title;
+    if (t.id === activeId) $('#title').value = data.title;
+    P.toast(remote
+      ? '« ' + base + ' » a aussi été modifié depuis un autre appareil. Vos changements sont conservés dans « ' + data.title + ' ».'
+      : '« ' + base + ' » avait été supprimé depuis un autre appareil : il a été rétabli.', 9000);
+    P.sync.syncNow();
+    return Object.assign({}, r, { id });
+  }
+
+  /** Enregistre un onglet dans le compte en ligne (création au premier envoi, puis mises à jour avec contrôle de révision). */
+  async function cloudSave(t, o) {
+    o = o || {};
+    const live = () => src(t);
+    if (!canCloud()) return { error: 'Connectez-vous pour enregistrer en ligne.' };
+    if (live().password) return { error: 'Un document protégé par mot de passe ne peut pas être enregistré en ligne.' };
+    if (saving.has(t.id)) return { busy: true };
+    saving.add(t.id);
+    try {
+      const mine = rev;
+      const data = t.id === activeId ? P.serialize() : P.serializeDoc(t.st, t.html);
+      const cl = live().cloud || { id: newId(), rev: 0 };
+      live().cloud = cl;
+      let r = await P.sync.put({ id: cl.id, rev: cl.rev, title: data.title, preview: previewOf(data.html), body: JSON.stringify(data) });
+      if (r.conflict) r = await resolveConflict(t, data, r.remote);
+      const s = live();
+      if (r.ok) {
+        s.cloud = { id: r.id || cl.id, rev: r.rev };
+        if (o.convert) s.path = null;
+        if (t.id !== activeId || rev === mine) s.dirty = false;
+        lastPush.set(t.id, Date.now());
+        repaint(t);
+        if (t.id === activeId) P.renderPanel();
+        if (o.manual) P.toast('Enregistré en ligne');
+        syncRecovery(true);
+        return { ok: true };
+      }
+      if (o.manual || r.tooBig) P.toast(r.error || 'Échec de l’enregistrement en ligne.', 7000);
+      repaint(t);
+      return r;
+    } finally { saving.delete(t.id); }
+  }
+
+  /** « Enregistrer sous… » sur un document en ligne : une copie sur l'ordinateur, sans changer le document ouvert. */
+  async function downloadCopy() {
+    P.snapshot(null, true);
+    const res = await native.save({ path: null, content: JSON.stringify(P.serialize()), password: '', saveAs: true, name: state.title });
+    if (!res) return false;
+    if (res.error) { P.toast('Échec de l’enregistrement : ' + res.error, 6000); return false; }
+    P.toast('Copie enregistrée : ' + fileTitle(res.path));
+    return true;
+  }
+  app.downloadCopy = downloadCopy;
+
+  /** Place le document ouvert dans le compte en ligne (depuis un fichier local, par exemple). */
+  app.saveOnline = async function () {
+    if (!inDoc()) return false;
+    if (!canCloud()) { P.toast('Connectez-vous pour enregistrer en ligne (Paramètres, Compte).', 5000); return false; }
+    if (state.password) { P.toast('Un document protégé par mot de passe ne peut pas être enregistré en ligne. Retirez d’abord le mot de passe.', 6000); return false; }
+    P.snapshot(null, true);
+    const r = await cloudSave(current(), { manual: true, convert: !state.cloud });
+    return !!(r && r.ok);
+  };
+
+  /** Ouvre un document du compte (ou active l'onglet où il est déjà ouvert). */
+  async function openCloud(id) {
+    const existing = tabs.find((t) => src(t).cloud && src(t).cloud.id === id);
+    if (existing) { activate(existing.id); return true; }
+    const r = await P.sync.fetchDoc(id);
+    if (!r.ok) { P.toast(r.error || 'Impossible d’ouvrir ce document en ligne.', 5000); return false; }
+    let data;
+    try { data = JSON.parse(r.row.body); } catch (_) { P.toast('Ce document en ligne est illisible.', 5000); return false; }
+    const mode = cfg().get('openMode');
+    return !!openTab(() => {
+      P.loadData(data);
+      state.cloud = { id, rev: r.row.rev };
+      afterLoad({ path: null, mode });
+    });
+  }
+  app.openCloud = openCloud;
+
+  /** Supprime un document du compte (il disparaît sur tous les appareils) et ferme son onglet. */
+  app.deleteCloud = async function (id) {
+    const meta = P.sync.doc(id);
+    const ok = await P.confirm('Supprimer ce document en ligne ?', '« ' + ((meta && meta.title) || 'Sans titre') + ' » sera supprimé de votre compte et de tous vos appareils. Cette action est définitive.', 'Supprimer');
+    if (!ok) return false;
+    const r = await P.sync.remove(id);
+    if (!r.ok) { P.toast(r.error || 'Échec de la suppression.', 6000); return false; }
+    const t = tabs.find((x) => src(x).cloud && src(x).cloud.id === id);
+    if (t) { src(t).dirty = false; await closeTab(t.id); }
+    P.toast('Document supprimé.');
+    return true;
+  };
+
+  /** Contenu venu d'un autre appareil appliqué à l'onglet actif (jamais s'il a des modifications locales). */
+  function applyRemote(row, data) {
+    if (!inDoc() || !state.cloud || state.cloud.id !== row.id || state.dirty) return;
+    const top = scroller.scrollTop;
+    P.resetSel();
+    P.loadData(data);
+    state.cloud = { id: row.id, rev: row.rev };
+    state.dirty = false;
+    $('#title').value = state.title;
+    setPageless(state.pageless);
+    refreshChrome();
+    P.renderPanel();
+    renderOutline();
+    scroller.scrollTop = top;
+    P.toast('Document mis à jour depuis un autre appareil.');
+  }
+
+  async function reloadFromCloud(t, rowRev) {
+    const mine = rev;
+    const r = await P.sync.fetchDoc(src(t).cloud.id);
+    if (!r.ok || r.row.rev <= src(t).cloud.rev) return;
+    const s = src(t);
+    if (s.dirty || (t.id === activeId && rev !== mine)) return;      // modifié pendant l'attente : le conflit se règle à l'enregistrement
+    let data;
+    try { data = JSON.parse(r.row.body); } catch (_) { return; }
+    if (t.id === activeId) applyRemote(r.row, data);
+    else { t.pending = { row: r.row, data }; }
+  }
+
+  P.sync.onRemote = (rows) => {
+    for (const row of rows) {
+      const t = tabs.find((x) => src(x).cloud && src(x).cloud.id === row.id);
+      if (!t || saving.has(t.id)) continue;
+      const s = src(t);
+      if (row.deleted) {
+        if (!s.dirty) { P.toast('« ' + (s.title || 'Sans titre') + ' » a été supprimé depuis un autre appareil.', 6000); closeTab(t.id); }
+        else { s.cloud = null; repaint(t); P.toast('« ' + (s.title || 'Sans titre') + ' » a été supprimé depuis un autre appareil. Vos modifications restent ici : enregistrez pour le rétablir.', 9000); }
+      } else if (row.rev > s.cloud.rev && !s.dirty) reloadFromCloud(t, row.rev);
+    }
+  };
+
+  /** Enregistrement automatique : une seconde et demie après la dernière frappe, ou au plus tard toutes les 20 s. */
+  function autosaveCloud() {
+    if (!canCloud()) return;
+    const now = Date.now();
+    for (const t of tabs) {
+      const s = src(t);
+      if (!s.dirty || s.password || saving.has(t.id)) continue;
+      if (!(s.cloud || (s.touched && wantCloud(s)))) continue;
+      if ((retryAt.get(t.id) || 0) > now) continue;
+      const idle = t.id !== activeId || now - lastEdit > 1500 || now - (lastPush.get(t.id) || 0) > 20000;
+      if (!idle) continue;
+      cloudSave(t).then((r) => { if (r && !r.ok && !r.busy) retryAt.set(t.id, Date.now() + (r.tooBig ? 60000 : 12000)); else retryAt.delete(t.id); });
+    }
+  }
+  setInterval(autosaveCloud, 1000);
+  P.sync.onTick = async () => { autosaveCloud(); };
+  let prevSyncStatus = '';
+  P.sync.on((e) => {
+    if (e === 'auth' && P.sync.account.signedIn) { retryAt.clear(); autosaveCloud(); }        // reconnexion : les modifications en attente partent aussitôt
+    if (e === 'status') {
+      if (prevSyncStatus === 'offline' && P.sync.status === 'idle') { retryAt.clear(); autosaveCloud(); }   // retour d'Internet
+      prevSyncStatus = P.sync.status;
+      refreshChrome();
+    }
+  });
+
+  /** Déconnexion : le contenu des onglets appartient au compte, on les ferme (après avoir tenté d'enregistrer). */
+  app.signOut = async function () {
+    captureActive();
+    for (const t of tabs.slice()) if (src(t).cloud && src(t).dirty) { try { await cloudSave(t); } catch (_) { /* on prévient ci-dessous */ } }
+    const lost = tabs.filter((t) => src(t).dirty);
+    if (lost.length) {
+      const ok = await P.confirm('Se déconnecter quand même ?', lost.length === 1 ? 'Un document a des modifications non enregistrées : elles seront perdues.' : lost.length + ' documents ont des modifications non enregistrées : elles seront perdues.', 'Se déconnecter');
+      if (!ok) return false;
+    }
+    for (const t of tabs.slice()) { src(t).dirty = false; await closeTab(t.id); }
+    activate('home');
+    await P.sync.signOut();
+    return true;
+  };
+
   /* ---------- Enregistrement ---------- */
   async function save(saveAs) {
     if (!inDoc()) return false;
+    if (saveAs && state.cloud) return downloadCopy();
+    if (!saveAs && (state.cloud || wantCloud(state))) {
+      P.snapshot(null, true);
+      const r = await cloudSave(current(), { manual: true });
+      return !!(r && r.ok);
+    }
     P.snapshot(null, true);
     const res = await native.save({
       path: state.path, content: JSON.stringify(P.serialize()), password: state.password || '',
@@ -730,6 +965,7 @@
     if (!inDoc() || !(await P.runDlp(true))) return;
     if (P.updateTocs) P.updateTocs();
     const c = ed.cloneNode(true);
+    if (P.pages) P.pages.strip(c);
     c.querySelectorAll('.noexport').forEach((n) => n.remove());
     Array.from(c.querySelectorAll('h1, h2, h3')).filter((n) => !n.closest('.toc') && n.textContent.trim()).forEach((n, i) => { n.id = 'h' + i; });
     c.querySelectorAll('.toc-item').forEach((t) => { const l = document.createElement('a'); l.href = '#h' + t.dataset.h; l.textContent = t.textContent; t.replaceChildren(l); });
@@ -788,14 +1024,16 @@
     const mod = e.ctrlKey || e.metaKey;
     const key = e.key;
     if (key === 'F11') { e.preventDefault(); app.toggleFullscreen(); return; }
+    if (key === 'F12' && !mod && !e.altKey) { e.preventDefault(); if (inDoc()) save(true); return; }
     if (e.altKey && key === 'Home') { e.preventDefault(); activate('home'); return; }
     if (!mod) return;
     if (key === 'Tab' || key === 'PageDown' || key === 'PageUp') { e.preventDefault(); cycle(key === 'PageUp' || (key === 'Tab' && e.shiftKey) ? -1 : 1); return; }
+    if (e.altKey && !e.shiftKey && key.toLowerCase() === 's') { e.preventDefault(); if (inDoc()) save(true); return; }   // Enregistrer sous (Ctrl+Maj+S est la saisie vocale)
     if (e.altKey) return;                                    // Ctrl+Alt+M : géré par l'éditeur
     const k = key.toLowerCase();
     if (k === 'n' || k === 't') { e.preventDefault(); newDoc(); }
     else if (k === 'o') { e.preventDefault(); openDoc(); }
-    else if (k === 's') { e.preventDefault(); if (inDoc()) save(e.shiftKey); }
+    else if (k === 's' && !e.shiftKey) { e.preventDefault(); if (inDoc()) save(false); }
     else if (k === 'p') { e.preventDefault(); printDoc(); }
     else if (k === 'w') { e.preventDefault(); app.closeActive(); }
     else if (k === 'f' && e.shiftKey) { e.preventDefault(); cfg().set('compact', !cfg().get('compact')); }
@@ -834,7 +1072,7 @@
       if (!dirty.length) {
         if (recoveryOn) { await native.recovery.clear(); recoveryOn = false; }
       } else {
-        await native.recovery.write(JSON.stringify(dirty.map((t) => P.serializeDoc(t.st, t.html))));
+        await native.recovery.write(JSON.stringify(dirty.map((t) => Object.assign(P.serializeDoc(t.st, t.html), t.st.cloud ? { cloud: t.st.cloud } : {}))));
         recoveryOn = true;
       }
       writtenRev = mine;
@@ -863,7 +1101,15 @@
           : 'Plume s’est fermé avant d’enregistrer ' + names + ' (' + fmtDate(docs[0].savedAt) + '). Voulez-vous le récupérer ?',
         'Restaurer');
       if (!ok) { await native.recovery.clear(); return; }
-      for (const data of docs) openTab(() => { P.loadData(data); afterLoad({ path: null, dirty: true }); });
+      for (const data of docs) {
+        openTab(() => {
+          P.loadData(data);
+          afterLoad({ path: null, dirty: true });
+          state.touched = true;
+          if (data.cloud && typeof data.cloud.id === 'string' && /^[0-9a-f-]{36}$/i.test(data.cloud.id)) state.cloud = { id: data.cloud.id, rev: Number(data.cloud.rev) || 0 };
+          refreshChrome();
+        });
+      }
       rev++;
     } catch (_) { try { await native.recovery.clear(); } catch (__) { /* ignoré */ } }
   }
@@ -877,6 +1123,11 @@
     let init = {};
     try { init = (await native.init()) || {}; } catch (_) { /* ignoré */ }
     app.info = { version: init.version, electron: init.electron, chrome: init.chrome };
+    await P.sync.init();
+    if (P.sync.account.configured && !P.sync.account.signedIn) {
+      await P.auth.show();                                       // première connexion : la page ne revient qu'après une déconnexion
+      if (!state.author) { try { await Promise.race([P.sync.syncNow(), new Promise((r) => setTimeout(r, 4000))]); } catch (_) { /* ignoré */ } }
+    }
     if (!state.author) await askAuthor(true);
     await restoreRecovery();
     if (init.file) await openFile(init.file);

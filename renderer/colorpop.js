@@ -103,5 +103,50 @@
     openFor(input);
   }, true);
 
-  P.colorpop = { open: openFor };
+  /** Palette autonome : pick(ancre, { title, current, none (libellé « aucune couleur »), onPick(hex | null) }). */
+  function pick(anchor, o) {
+    o = o || {};
+    const now = normalize(o.current) || normalize(rgbToHex(o.current));
+    const sw = [];
+    let hl = -1;
+    const setHl = (i) => { hl = i; sw.forEach((b, k) => b.classList.toggle('hl', k === i)); };
+    const done = (hex) => { P.pop.close(); if (o.onPick) o.onPick(hex); };
+    const grid = h('div', { class: 'cm-grid', role: 'grid' });
+    GRID.forEach((c, i) => {
+      const b = h('button', { type: 'button', class: 'cm-sw' + (c === now ? ' cur' : ''), title: c.toUpperCase(), 'aria-label': c.toUpperCase(), 'data-c': c });
+      b.style.background = c;
+      b.addEventListener('mousedown', (e) => e.preventDefault());
+      b.addEventListener('mouseenter', () => setHl(i));
+      b.addEventListener('click', () => done(c));
+      sw.push(b); grid.append(b);
+    });
+    const row = (icon, text, fn) => {
+      const b = h('button', { type: 'button', class: 'menu-item cm-act' }, h('span', { class: 'mi-lead' }, icon), h('span', { class: 'mi-label', text }));
+      b.addEventListener('mousedown', (e) => e.preventDefault());
+      b.addEventListener('click', fn);
+      return b;
+    };
+    const input = h('input', { type: 'color', value: now || '#000000', tabindex: '-1', style: 'position:fixed;left:-99px;opacity:0' });
+    input.addEventListener('input', () => { if (o.onPick) o.onPick(input.value.toLowerCase()); });
+    document.body.append(input);
+    const other = () => { P.pop.close(); bypass = true; try { if (input.showPicker) input.showPicker(); else input.click(); } catch (e) { input.click(); } finally { setTimeout(() => { bypass = false; setTimeout(() => input.remove(), 60000); }, 0); } };
+    const menu = h('div', { class: 'menu color-menu', role: 'dialog', 'aria-label': o.title || 'Couleur' },
+      h('div', { class: 'cm-title', text: o.title || 'Couleur' }), grid, h('div', { class: 'menu-sep' }),
+      o.none ? row(h('i', { class: 'cm-none' }), o.none, () => done(null)) : null,
+      row(h('i', { class: 'cm-wheel' }), 'Autre couleur…', other));
+    P.pop.open(menu, {
+      anchor,
+      onKey(e) {
+        const k = e.key;
+        const go = (d) => { e.preventDefault(); e.stopPropagation(); setHl(hl < 0 ? 0 : Math.max(0, Math.min(GRID.length - 1, hl + d))); };
+        if (k === 'ArrowRight') go(1); else if (k === 'ArrowLeft') go(-1); else if (k === 'ArrowDown') go(COLS); else if (k === 'ArrowUp') go(-COLS);
+        else if ((k === 'Enter' || k === ' ') && hl >= 0) { e.preventDefault(); e.stopPropagation(); done(GRID[hl]); }
+      },
+    });
+    const cur = sw.findIndex((b) => b.classList.contains('cur'));
+    if (cur >= 0) setHl(cur);
+  }
+  const rgbToHex = (c) => { const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(c || ''); return m ? toHex([+m[1], +m[2], +m[3]]) : ''; };
+
+  P.colorpop = { open: openFor, pick };
 })();
