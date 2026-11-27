@@ -74,10 +74,10 @@
     ed.querySelectorAll('.cmt').forEach((n) => { if (!ids.has(n.dataset.cid)) P.unwrap(n); });
   };
 
-  /** Charge un document .plume déjà décodé (lève une erreur si le format est invalide). */
-  P.loadData = (data) => {
-    if (!data || data.format !== 'plume' || typeof data.html !== 'string') throw new Error('Ce fichier n’est pas un document Plume valide.');
-    state.assets = {};
+  /** Titre, images, styles, champs, commentaires et versions d'un document décodé (tout sauf le texte). `keepAssets` : on ajoute aux images déjà là. */
+  P.applyMeta = (data, keepAssets) => {
+    if (!keepAssets) state.assets = {};
+    else state.assets = state.assets || {};
     if (data.assets && typeof data.assets === 'object') {
       for (const [k, v] of Object.entries(data.assets)) if (/^[a-z0-9]+$/.test(k) && typeof v === 'string' && IMG_OK.test(v)) state.assets[k] = v;
     }
@@ -101,6 +101,12 @@
         variables: v.variables && typeof v.variables === 'object' ? Object.fromEntries(Object.entries(v.variables).map(([k, x]) => [str(k, 100), str(x, 500)])) : {},
       }))
       .slice(-60);
+  };
+
+  /** Charge un document .plume déjà décodé (lève une erreur si le format est invalide). */
+  P.loadData = (data) => {
+    if (!data || data.format !== 'plume' || typeof data.html !== 'string') throw new Error('Ce fichier n’est pas un document Plume valide.');
+    P.applyMeta(data, false);
     ed.innerHTML = P.sanitize(P.unpack(data.html, state.assets)) || '<p><br></p>';
     P.pruneCommentAnchors();
     if (P.fixChecklists) P.fixChecklists();

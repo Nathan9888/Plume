@@ -8,8 +8,9 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  const TABLES = ['plume_documents', 'plume_profile'];
-  const METHODS = ['GET', 'POST', 'PATCH'];
+  const TABLES = ['plume_documents', 'plume_profile', 'plume_directory', 'plume_shares', 'plume_presence'];
+  const METHODS = ['GET', 'POST', 'PATCH', 'DELETE'];
+  const CAN_DELETE = ['plume_shares', 'plume_presence'];        // les documents ne se suppriment que par une stèle (deleted = true)
   const OFFLINE = 'Connexion impossible. Vérifiez votre accès à Internet.';
 
   /** Messages d'erreur de GoTrue / PostgREST, en français. */
@@ -151,7 +152,7 @@
       const q = req || {};
       const method = String(q.method || 'GET').toUpperCase();
       if (!configured) return { ok: false, status: 0, error: 'Le service en ligne n’est pas configuré.' };
-      if (!METHODS.includes(method) || !TABLES.includes(q.table)) return { ok: false, status: 0, error: 'Requête refusée.' };
+      if (!METHODS.includes(method) || !TABLES.includes(q.table) || (method === 'DELETE' && !CAN_DELETE.includes(q.table))) return { ok: false, status: 0, error: 'Requête refusée.' };
       const params = new URLSearchParams();
       for (const [k, v] of Object.entries(q.query || {})) {
         if (!/^[a-z_]{1,32}$/.test(k)) return { ok: false, status: 0, error: 'Requête refusée.' };

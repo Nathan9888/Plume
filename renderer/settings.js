@@ -174,6 +174,13 @@
     for (const ch of String(name || '?')) n = (n * 31 + ch.codePointAt(0)) % 360;
     return `linear-gradient(160deg, hsl(${n} 62% 62%), hsl(${n} 58% 44%))`;
   };
+  /** Couleur unie d'une personne (curseur, pastille) : stable pour un nom donné. */
+  P.avatarHue = (name) => {
+    let n = 0;
+    for (const ch of String(name || '?')) n = (n * 31 + ch.codePointAt(0)) % 360;
+    return `hsl(${n} 62% 48%)`;
+  };
+  P.safeColor = (c, name) => (/^(#[0-9a-f]{3,8}|hsl\(\d{1,3} \d{1,3}% \d{1,3}%\))$/i.test(String(c || '')) ? String(c) : P.avatarHue(name));
   P.paintAvatars = () => {
     const name = P.state.author;
     P.$$('.avatar, .pc-avatar').forEach((el) => {
@@ -287,13 +294,17 @@
       SCHEMA.filter((d) => d.quick && d.section === keys).forEach((d) => box.append(rowOf(d, 'row')));
       return h('div', { class: 'pc-sec' }, h('h4', { text: title }), box);
     };
+    const roles = P.share && P.app && P.app.inDoc && P.app.inDoc() ? P.share.roleSection(() => P.pop.close()) : null;
+    const Ys = P.sync;
+    const who = Ys && Ys.account && Ys.account.signedIn ? (Ys.account.email || 'Compte en ligne') : 'Compte local · vos données restent sur cet ordinateur';
     const card = h('div', { class: 'pop-card', role: 'dialog', 'aria-label': 'Compte et paramètres' },
       h('div', { class: 'pc-head' },
         h('div', { class: 'pc-avatar' }),
         h('div', { class: 'pc-who' },
           h('div', { class: 'pc-name', text: P.state.author || 'Moi' }),
-          h('div', { class: 'pc-sub', text: 'Compte local · vos données restent sur cet ordinateur' })),
+          h('div', { class: 'pc-sub', text: who })),
         h('button', { type: 'button', class: 'chipbtn', text: 'Modifier le nom', onclick: () => { P.pop.close(); P.app.askAuthor(false); } })),
+      roles,
       section('Apparence', 'appearance'),
       section('Édition', 'edit'),
       section('Fichiers et données', 'files'),

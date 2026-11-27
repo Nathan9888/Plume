@@ -136,7 +136,7 @@
   const toggleMic = () => { if (wantOn || listening) stopRec(false); else startRec(); };
 
   function buildCard() {
-    const sel = h('select', { 'aria-label': 'Langue de dictée', 'data-native': '1' }, LANGS.map(([c, n]) => h('option', { value: c, text: n })));
+    const sel = h('select', { 'aria-label': 'Langue de dictée' }, LANGS.map(([c, n]) => h('option', { value: c, text: n })));
     sel.value = lang;
     sel.addEventListener('change', () => {
       lang = sel.value;

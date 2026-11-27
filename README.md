@@ -115,6 +115,15 @@ bordures (couleur, épaisseur, côtés) et **redimensionnement des bordures par 
 partagent les mêmes documents, réglages et profil (les clés d'IA ne sont **jamais** synchronisées ; les documents ne sont pas chiffrés de bout en bout ; un document protégé par mot de passe reste local).
 N'utilisez jamais la clé *service_role* (secrète). Sans configuration, Plume reste 100 % local.
 
+**Partage et collaboration** (nécessite le compte en ligne) :
+- **Partager** (bouton à côté d'Enregistrer, ou Fichier → Partager…) : on cherche une personne **par son nom** (celui de son profil ; si deux personnes ont le même nom, un numéro est ajouté : « Alice 2 »),
+  on choisit son rôle — **Édition**, **Suggestion** (ses modifications sont proposées, pas appliquées) ou **Lecture** — et on peut le changer ou retirer l'accès à tout moment.
+- **Partagés avec moi** (page d'accueil) : les documents que d'autres ont partagés avec vous, avec le nom du propriétaire et votre rôle. « Quitter ce document » le retire de la liste.
+- **Menu de rôle** : en cliquant sur votre profil (à côté du bouton IA), « Mon rôle dans ce document » propose Édition / Suggestion / Lecture ; ce que le propriétaire ne vous a pas accordé est grisé.
+- **Curseurs en direct** : les personnes qui ont le même document ouvert apparaissent en pastilles près des boutons, et leur curseur (avec leur nom) et leur sélection sont affichés dans le texte.
+- **Modifications simultanées** : le document est comparé paragraphe par paragraphe. Les modifications de paragraphes différents s'additionnent sans rien perdre ; si deux personnes modifient **le même paragraphe**,
+  les deux versions sont conservées l'une sous l'autre (et vous êtes prévenu). Les changements des autres arrivent sans bouger votre curseur.
+
 **Correction orthographique façon Google Docs** — les mots inconnus sont soulignés d'un trait ondulé rouge. Un clic sur un mot
 ouvre une pastille : la **suggestion** (un clic la remplace), **Ignorer**, **commentaire**, et un menu `⋮` (autres suggestions,
 « Toujours remplacer par … », « Ajouter au dictionnaire personnel », « Vérification de l'orthographe »).
@@ -192,10 +201,10 @@ Ouverture de fichiers `.plume`, `.html` et `.txt`.
 
 | Dans la liste Google Docs | Dans Plume |
 |---|---|
-| Édition simultanée à plusieurs, curseurs des autres, transformation opérationnelle | **Non.** Cela exige un serveur central ; Plume est un logiciel local. |
+| Édition simultanée à plusieurs, curseurs des autres | **Oui, en version simplifiée** (avec le compte en ligne) : curseurs et modifications rafraîchis toutes les ~2 secondes (pas à la milliseconde), fusion par paragraphes ; pas de fusion lettre par lettre dans un même paragraphe. |
 | Graphe de connaissances Google (profils, Drive, Agenda, Maps) | **Non.** Les puces utilisent des contacts et des fichiers locaux. |
 | Apps Script, modules complémentaires, API REST | **Non** pour l'instant. |
-| Droits Propriétaire/Éditeur/Commentateur/Lecteur par utilisateur | **Non.** Les modes Édition/Suggestion/Lecture sont des *modes de travail*, pas des permissions : n'importe qui ayant le fichier peut le modifier. Pour restreindre l'accès, utilisez le mot de passe. |
+| Droits Propriétaire/Éditeur/Commentateur/Lecteur par utilisateur | **Oui pour les documents en ligne** : Propriétaire, Édition, Suggestion, Lecture (le serveur refuse l'écriture à un lecteur ; le caractère « suggestion seulement » est appliqué par l'application, pas par le serveur). Pour un fichier local, les modes restent des *modes de travail* : utilisez le mot de passe pour restreindre l'accès. |
 | Chiffrement côté client avec clés de l'entreprise, DLP par apprentissage automatique | **Non.** Plume a un chiffrement par mot de passe et une détection par motifs (des faux positifs et des oublis sont possibles). |
 | Rendu sur `<canvas>` | **Non**, par choix : le rendu standard garde la saisie, l'orthographe et les accents natifs de Windows. |
 | Ouvrir un fichier Word (`.docx`) | **Pas encore.** On peut exporter *vers* Word, pas l'ouvrir. Astuce : dans Word, enregistrez en `.html` puis ouvrez-le dans Plume. |
@@ -203,7 +212,8 @@ Ouverture de fichiers `.plume`, `.html` et `.txt`.
 Limites connues : en mode Suggestion, seuls le texte tapé, collé et supprimé est suivi (pas la mise en forme, les
 objets insérés ni les sauts de paragraphe) ; les en-têtes et pieds de page ne sont pas encore pris en charge et une ligne de tableau plus haute qu'une page déborde ; annuler (`Ctrl+Z`) ne défait pas les actions faites dans les panneaux (commentaire résolu,
 suggestion acceptée) — utilisez l'historique des versions. L'historique d'annulation d'un document est aussi remis à zéro
-quand on change d'onglet (le contenu, lui, est conservé intact).
+quand on change d'onglet (le contenu, lui, est conservé intact), et quand le texte d'un paragraphe est remplacé par une modification venue d'une autre personne.
+Partage : il faut au moins deux comptes ; un document protégé par mot de passe ne peut pas être partagé ; les curseurs ne sont pas instantanés (~2 s) ; un document partagé n'est lisible qu'avec une connexion.
 
 ## Raccourcis
 
@@ -247,7 +257,9 @@ web/           version navigateur : native-web.js (remplace le pont Electron) et
   docx.js      générateur Word (.docx), sans dépendance
   app.js       onglets, fichiers, modes, exports, mot de passe, récupération
   menus.js     barre de menus et menus déroulants
-  home.js      page d'accueil
+  home.js      page d'accueil (dont « Partagés avec moi »)
+  collab.js    fusion à trois par blocs, curseurs des autres, pastilles de présence
+  share.js     dialogue Partager, menu de rôle du profil
   start.js     démarrage
 ```
 

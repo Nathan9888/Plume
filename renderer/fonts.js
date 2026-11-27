@@ -190,7 +190,7 @@
     const STEP = 70;
 
     const q = h('input', { type: 'search', placeholder: 'Rechercher des polices', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Rechercher des polices' });
-    const catBox = h('select', { 'aria-label': 'Catégorie', 'data-native': '1' }, h('option', { value: '-1', text: 'Toutes les catégories' }), CATS.map((c, i) => h('option', { value: String(i), text: c })));
+    const catBox = h('select', { 'aria-label': 'Catégorie' }, h('option', { value: '-1', text: 'Toutes les catégories' }), CATS.map((c, i) => h('option', { value: String(i), text: c })));
     const list = h('div', { class: 'fd-list', role: 'listbox', 'aria-label': 'Polices disponibles', 'aria-multiselectable': 'true' });
     const sel = h('div', { class: 'fd-sel', 'aria-label': 'Polices sélectionnées' });
     const note = h('p', { class: 'fd-note' });

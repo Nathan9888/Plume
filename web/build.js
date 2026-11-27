@@ -28,8 +28,8 @@ html = html.replace(/<link rel="stylesheet" href="([^"]+)">/g, (_m, f) => {
 
 // Configuration du compte en ligne (adresse du projet Supabase + clé publique « anon / publishable »)
 const cloudCfg = JSON.parse(read(path.join(root, 'shared', 'cloud-config.json')));
-const CLOUD_URL = String(process.env.PLUME_CLOUD_URL || cloudCfg.url || '').trim().replace(/\/+$/, '');
-const CLOUD_KEY = String(process.env.PLUME_CLOUD_KEY || cloudCfg.key || '').trim();
+const CLOUD_URL = String(process.env.PLUME_CLOUD_URL !== undefined ? process.env.PLUME_CLOUD_URL : cloudCfg.url || '').trim().replace(/\/+$/, '');
+const CLOUD_KEY = String(process.env.PLUME_CLOUD_KEY !== undefined ? process.env.PLUME_CLOUD_KEY : cloudCfg.key || '').trim();
 if (!/^(https:\/\/[A-Za-z0-9.\-]+(:\d+)?|http:\/\/(127\.0\.0\.1|localhost)(:\d+)?)?$/.test(CLOUD_URL)) throw new Error('shared/cloud-config.json : adresse du projet invalide.');
 if (!/^[A-Za-z0-9._\-]*$/.test(CLOUD_KEY)) throw new Error('shared/cloud-config.json : clé invalide (une clé publique ne contient que des lettres, chiffres, points, tirets).');
 const shim = read(path.join(__dirname, 'native-web.js'))

@@ -107,16 +107,64 @@
     more);
   }
 
+  /** Carte d'un document partagé avec moi : propriétaire, rôle, et « Quitter ». */
+  function sharedCard(d) {
+    const Y = P.sync;
+    const open = () => P.app.openCloud(d.id);
+    const owner = Y.person(d.user_id);
+    const role = Y.roleOf(d.id);
+    const more = h('button', { type: 'button', class: 'icon-btn rmore', title: 'Plus d’actions', 'aria-label': 'Plus d’actions pour ' + d.title,
+      onclick: (e) => {
+        e.stopPropagation();
+        if (P.pop.isOpen() && P.pop.anchor() === more) { P.pop.close(); return; }
+        P.menu.open([
+          { label: 'Ouvrir', icon: 'i-folder', action: open },
+          '-',
+          { label: 'Quitter ce document…', icon: 'i-trash', action: () => P.app.leaveShared(d.id) },
+        ], { anchor: more, align: 'right' });
+      } }, P.svgIcon('i-more'));
+    more.addEventListener('mousedown', (e) => e.stopPropagation());
+    return h('div', { class: 'rcard cloud shared', role: 'button', tabindex: '0', title: d.title,
+      onclick: open, onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); open(); } } },
+    h('div', { class: 'rthumb' }, previewEl({ preview: (d.title ? d.title + '\n' : '') + (d.preview || '') }), h('span', { class: 'role-badge r-' + role, text: (P.collab.ROLE[role] || '') })),
+    h('div', { class: 'rinfo' },
+      h('div', { class: 'rtitle', text: d.title || 'Sans titre' }),
+      h('div', { class: 'rmeta' }, P.svgIcon('i-person', 'sm'), (owner ? owner.name : 'Partagé') + ' · ' + ago(d.updated_at))),
+    more);
+  }
+
+  function renderShared(on) {
+    const Y = P.sync;
+    const sec = $('#shared-sec');
+    sec.hidden = !on;
+    if (!on) return;
+    const box = $('#shared-list');
+    box.replaceChildren();
+    box.classList.toggle('list', cfg().get('homeView') === 'list');
+    let items = Y.sharedDocs();
+    const q = $('#home-q').value.trim().toLowerCase();
+    if (q) items = items.filter((d) => String(d.title || '').toLowerCase().includes(q) || String(d.preview || '').toLowerCase().includes(q));
+    if (cfg().get('homeSort') === 'title') items.sort((a, b) => String(a.title).localeCompare(String(b.title), 'fr', { sensitivity: 'base' }));
+    $('#shared-count').textContent = items.length ? String(items.length) : '';
+    if (!items.length) {
+      box.append(h('div', { class: 'home-empty soft' }, q ? ['Aucun document partagé ne correspond à « ', h('b', { text: $('#home-q').value.trim() }), ' ».']
+        : [h('b', { text: 'Rien de partagé avec vous pour l’instant.' }), ' Les documents que d’autres personnes partagent avec vous (par votre nom) apparaissent ici.']));
+      return;
+    }
+    items.forEach((d) => box.append(sharedCard(d)));
+  }
+
   function renderCloud() {
     const Y = P.sync;
     const sec = $('#cloud-sec');
     const on = !!(Y && Y.account.configured && Y.account.signedIn);
     sec.hidden = !on;
+    renderShared(on);
     if (!on) return;
     const box = $('#cloud-list');
     box.replaceChildren();
     box.classList.toggle('list', cfg().get('homeView') === 'list');
-    let items = Y.docs();
+    let items = Y.docs().filter(Y.isMine);
     const q = $('#home-q').value.trim().toLowerCase();
     if (q) items = items.filter((d) => String(d.title || '').toLowerCase().includes(q) || String(d.preview || '').toLowerCase().includes(q));
     if (cfg().get('homeSort') === 'title') items.sort((a, b) => String(a.title).localeCompare(String(b.title), 'fr', { sensitivity: 'base' }));
@@ -180,7 +228,7 @@
     $('#home-view').addEventListener('click', () => { cfg().set('homeView', cfg().get('homeView') === 'list' ? 'grid' : 'list'); renderRecents(); });
     $('#home-open').addEventListener('click', () => P.app.openDoc());
     cfg().onChange((k) => { if (k === '*') { applyTplState(); renderRecents(); } });
-    if (P.sync) P.sync.on((t) => { if ((t === 'docs' || t === 'auth' || t === 'status') && !$('#home').hidden) renderCloud(); });
+    if (P.sync) P.sync.on((t) => { if ((t === 'docs' || t === 'auth' || t === 'status' || t === 'shares' || t === 'people') && !$('#home').hidden) renderCloud(); });
   }
 
   P.home = { init, refresh, showTemplates, recents: () => recents };

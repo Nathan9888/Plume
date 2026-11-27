@@ -12,6 +12,7 @@ exports.start = function start(opts) {
     access: new Map(),         // access_token → {user, exp}
     refresh: new Map(),        // refresh_token → user
     docs: [],                  // lignes de plume_documents
+    directory: [], shares: [], presence: [],   // annuaire des noms, partages, présence
     profiles: new Map(),       // user_id → ligne de plume_profile
     log: [],                   // {method, path, user}
     fail: null,                // fonction (req) => {status, body} pour simuler une panne
@@ -48,10 +49,12 @@ exports.start = function start(opts) {
   const matches = (row, params) => {
     for (const [k, v] of params) {
       if (['select', 'order', 'limit', 'on_conflict', 'offset'].includes(k)) continue;
-      const m = /^(eq|gt|gte|lt|lte|neq)\.(.*)$/.exec(v);
+      const m = /^(eq|gt|gte|lt|lte|neq|like|ilike|in)\.(.*)$/.exec(v);
       if (!m) continue;
       const a = row[k];
       const b = m[2];
+      if (m[1] === 'like' || m[1] === 'ilike') { const re = new RegExp('^' + b.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$', m[1] === 'ilike' ? 'i' : ''); if (!re.test(String(a))) return false; continue; }
+      if (m[1] === 'in') { const set = b.replace(/^\(|\)$/g, '').split(',').map((x) => x.replace(/^"|"$/g, '')); if (!set.includes(String(a))) return false; continue; }
       const cmp = (x, y) => (typeof x === 'number' ? x - Number(y) : String(x) < String(y) ? -1 : String(x) > String(y) ? 1 : 0);
       const r = m[1] === 'eq' ? String(a) === b : m[1] === 'neq' ? String(a) !== b : m[1] === 'gt' ? cmp(a, b) > 0 : m[1] === 'gte' ? cmp(a, b) >= 0 : m[1] === 'lt' ? cmp(a, b) < 0 : cmp(a, b) <= 0;
       if (!r) return false;
@@ -111,17 +114,43 @@ exports.start = function start(opts) {
     if (u.pathname === '/auth/v1/recover' && req.method === 'POST') { st.recovered = body && body.email; return send(res, 200, {}); }
 
     // ---- PostgREST
-    const tm = /^\/rest\/v1\/(plume_documents|plume_profile)$/.exec(u.pathname);
+    const tm = /^\/rest\/v1\/(plume_documents|plume_profile|plume_directory|plume_shares|plume_presence)$/.exec(u.pathname);
     if (tm) {
       if (!user) return send(res, 401, { code: 'PGRST301', message: 'JWT expired or invalid' });
       const table = tm[1];
       const select = u.searchParams.get('select');
       const prefer = String(req.headers.prefer || '');
       const wantRows = /return=representation/.test(prefer);
-      const pk = table === 'plume_documents' ? 'id' : 'user_id';
-      const mine = () => (table === 'plume_documents' ? st.docs : Array.from(st.profiles.values())).filter((r) => r.user_id === user.id);
+      const PK = { plume_documents: ['id'], plume_profile: ['user_id'], plume_directory: ['user_id'], plume_shares: ['doc_id', 'user_id'], plume_presence: ['doc_id', 'user_id'] }[table];
+      const all = () => (table === 'plume_documents' ? st.docs : table === 'plume_profile' ? Array.from(st.profiles.values()) : st[table.replace('plume_', '')]);
+      const roleOf = (docId) => { const s = st.shares.find((x) => x.doc_id === docId && x.user_id === user.id); return s ? s.role : null; };
+      const isOwner = (docId) => st.docs.some((d) => d.id === docId && d.user_id === user.id);
+      // la sécurité par ligne de supabase/schema.sql, politique par politique
+      const canRead = (r) => table === 'plume_documents' ? r.user_id === user.id || !!roleOf(r.id)
+        : table === 'plume_profile' ? r.user_id === user.id
+          : table === 'plume_directory' ? true
+            : table === 'plume_shares' ? r.owner_id === user.id || r.user_id === user.id
+              : isOwner(r.doc_id) || !!roleOf(r.doc_id);
+      const canUpdate = (r) => table === 'plume_documents' ? r.user_id === user.id || ['edit', 'suggest'].includes(roleOf(r.id))
+        : table === 'plume_shares' ? r.owner_id === user.id
+          : table === 'plume_presence' ? r.user_id === user.id && (isOwner(r.doc_id) || !!roleOf(r.doc_id))
+            : r.user_id === user.id;
+      const canInsert = (r) => table === 'plume_documents' ? r.user_id === user.id
+        : table === 'plume_shares' ? r.owner_id === user.id && isOwner(r.doc_id)
+          : table === 'plume_presence' ? r.user_id === user.id && (isOwner(r.doc_id) || !!roleOf(r.doc_id))
+            : r.user_id === user.id;
+      const canDelete = (r) => table === 'plume_shares' ? r.owner_id === user.id || r.user_id === user.id : table === 'plume_presence' ? r.user_id === user.id : false;
+      const denied = () => send(res, 403, { code: '42501', message: 'new row violates row-level security policy for table "' + table + '"' });
+      const finish = (row) => {                                       // déclencheurs : nom normalisé, heure du serveur
+        if (table === 'plume_directory') { row.name = String(row.name || '').trim(); row.name_key = row.name.toLowerCase(); }
+        row.updated_at = now();
+        return row;
+      };
+      const dupName = (row, self) => table === 'plume_directory' && st.directory.some((x) => x !== self && x.name_key === row.name_key);
+      const checks = (row) => { if (table === 'plume_shares' && !['edit', 'suggest', 'view'].includes(row.role)) return 'role'; if (table === 'plume_documents' && typeof row.body !== 'string') return 'body'; return null; };
+
       if (req.method === 'GET') {
-        let rows = mine().filter((r) => matches(r, u.searchParams));
+        let rows = all().filter((r) => canRead(r) && matches(r, u.searchParams));
         const ord = u.searchParams.get('order');
         if (ord) { const [c, d] = ord.split('.'); rows.sort((a, b) => (a[c] < b[c] ? -1 : a[c] > b[c] ? 1 : 0) * (d === 'desc' ? -1 : 1)); }
         const lim = Number(u.searchParams.get('limit'));
@@ -134,24 +163,48 @@ exports.start = function start(opts) {
         for (const raw of arr) {
           const row = Object.assign(table === 'plume_documents'
             ? { id: uuid(), title: 'Sans titre', preview: '', body: '', encrypted: false, rev: 1, deleted: false, device: null, created_at: now() }
-            : { author: null, settings: {} }, raw, { user_id: user.id });
-          if (table === 'plume_documents' && typeof row.body !== 'string') return send(res, 400, { code: '22P02', message: 'invalid body' });
-          const existing = (table === 'plume_documents' ? st.docs : Array.from(st.profiles.values())).find((r) => r[pk] === row[pk]);
+            : table === 'plume_profile' ? { author: null, settings: {} }
+              : table === 'plume_directory' ? { name: '', color: '#4f8cff' }
+                : table === 'plume_shares' ? { owner_id: user.id, created_at: now() }
+                  : { name: '', color: '#4f8cff', role: 'edit', cursor: null },
+          raw, table === 'plume_documents' || table === 'plume_profile' || table === 'plume_directory' || table === 'plume_presence' ? { user_id: user.id } : {});
+          const bad = checks(row);
+          if (bad) return send(res, 400, { code: '22P02', message: 'invalid ' + bad });
+          const existing = all().find((r) => PK.every((k) => r[k] === row[k]));
           if (existing) {
-            if (existing.user_id !== user.id) return send(res, 403, { code: '42501', message: 'new row violates row-level security policy for table "' + table + '"' });
-            if (/merge-duplicates/.test(prefer)) { Object.assign(existing, raw, { user_id: user.id, updated_at: now() }); out.push(existing); continue; }
+            if (/merge-duplicates/.test(prefer)) {
+              if (!canUpdate(existing)) return denied();
+              if (dupName(Object.assign({}, existing, raw, { name_key: String(raw.name || existing.name).trim().toLowerCase() }), existing)) return send(res, 409, { code: '23505', message: 'duplicate key value violates unique constraint "plume_directory_name_key"' });
+              Object.assign(existing, raw, table === 'plume_documents' ? { user_id: existing.user_id } : table === 'plume_shares' ? { owner_id: existing.owner_id } : { user_id: user.id });
+              finish(existing); out.push(existing); continue;
+            }
             if (/ignore-duplicates/.test(prefer)) continue;
+            if (!canRead(existing) && !canUpdate(existing)) return denied();
             return send(res, 409, { code: '23505', message: 'duplicate key value violates unique constraint "' + table + '_pkey"' });
           }
-          row.updated_at = now();
-          if (table === 'plume_documents') st.docs.push(row); else st.profiles.set(user.id, row);
+          if (!canInsert(row)) return denied();
+          finish(row);
+          if (dupName(row, null)) return send(res, 409, { code: '23505', message: 'duplicate key value violates unique constraint "plume_directory_name_key"' });
+          if (table === 'plume_documents') st.docs.push(row); else if (table === 'plume_profile') st.profiles.set(user.id, row); else st[table.replace('plume_', '')].push(row);
           out.push(row);
         }
         return wantRows ? send(res, 201, out.map((r) => project(r, select))) : send(res, 201);
       }
       if (req.method === 'PATCH') {
-        const rows = mine().filter((r) => matches(r, u.searchParams));
-        for (const r of rows) { Object.assign(r, body || {}, { user_id: user.id, updated_at: now() }); }
+        const rows = all().filter((r) => canRead(r) && canUpdate(r) && matches(r, u.searchParams));
+        for (const r of rows) {
+          const patch = Object.assign({}, body || {});
+          if (table === 'plume_documents') { if (r.user_id !== user.id) { delete patch.user_id; delete patch.deleted; } else patch.user_id = r.user_id; }
+          else if (table === 'plume_shares') { delete patch.owner_id; delete patch.doc_id; delete patch.user_id; if (patch.role && !['edit', 'suggest', 'view'].includes(patch.role)) return send(res, 400, { code: '23514', message: 'check constraint' }); }
+          else patch.user_id = r.user_id;
+          Object.assign(r, patch); finish(r);
+        }
+        return wantRows ? send(res, 200, rows.map((r) => project(r, select))) : send(res, 204);
+      }
+      if (req.method === 'DELETE') {
+        const rows = all().filter((r) => canRead(r) && canDelete(r) && matches(r, u.searchParams));
+        for (const r of rows) { const list = st[table.replace('plume_', '')]; list.splice(list.indexOf(r), 1); }
+        if (table === 'plume_shares') for (const r of rows) st.presence = st.presence.filter((p) => !(p.doc_id === r.doc_id && p.user_id === r.user_id));
         return wantRows ? send(res, 200, rows.map((r) => project(r, select))) : send(res, 204);
       }
     }

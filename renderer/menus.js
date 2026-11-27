@@ -180,6 +180,7 @@
         { label: 'Afficher l’historique des versions', action: () => P.showPanel('versions') },
       ] },
       '-',
+      ...(A().canCloud && P.sync && P.sync.account.configured ? [{ label: 'Partager…', icon: 'i-person-plus', action: () => P.share && P.share.open() }, '-'] : []),
       { label: 'Protéger par mot de passe…', icon: 'i-lock', action: () => A().setPassword() },
       { label: 'Imprimer', hint: 'Ctrl+P', icon: 'i-print', action: () => A().print() },
       '-',

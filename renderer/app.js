@@ -215,6 +215,7 @@
     showView('doc');
     renderTabs();
     ed.focus();
+    if (P.collab) { P.collab.poke(); P.collab.renderRemote(); }
     const pend = tabById(id).pending;
     if (pend) { tabById(id).pending = null; applyRemote(pend.row, pend.data); }
   }
@@ -331,9 +332,21 @@
     view: { label: 'Lecture', icon: 'i-eye', desc: 'Lecture seule, sans modification possible', status: 'Lecture seule' },
   };
   app.MODES = MODES;
+
+  /* ---------- Rôle sur un document partagé : Édition, Suggestion ou Lecture (le propriétaire a tous les droits) ---------- */
+  const RANK = { view: 0, suggest: 1, edit: 2 };
+  const roleOfDoc = (s) => (s.cloud && P.sync ? (P.sync.roleOf(s.cloud.id) || 'owner') : 'owner');
+  const capOf = (role) => (role === 'owner' ? 'edit' : role);
+  /** Mon rôle sur le document ouvert : 'owner' | 'edit' | 'suggest' | 'view'. */
+  app.role = () => (inDoc() ? roleOfDoc(state) : 'owner');
+  /** Le mode le plus permissif que mon rôle autorise. */
+  app.modeCap = () => capOf(app.role());
   function setMode(m) {
     if (!MODES[m]) m = 'edit';
+    const cap = capOf(roleOfDoc(state));
+    if (RANK[m] > RANK[cap]) m = cap;               // un rôle Suggestion ou Lecture ne permet jamais le mode Édition
     state.mode = m;
+    $('#title').readOnly = cap === 'view';
     ed.contentEditable = m === 'view' ? 'false' : 'true';
     document.body.dataset.mode = m;
     $('#st-mode').textContent = MODES[m].status;
@@ -346,8 +359,9 @@
   $('#modebtn').addEventListener('click', (e) => {
     const btn = e.currentTarget;
     if (P.pop.isOpen() && P.pop.anchor() === btn) { P.pop.close(); return; }
+    const cap = app.modeCap();
     P.menu.open(Object.keys(MODES).map((k) => ({
-      label: MODES[k].label, desc: MODES[k].desc, icon: MODES[k].icon, checked: () => state.mode === k, action: () => setMode(k),
+      label: MODES[k].label, desc: RANK[k] > RANK[cap] ? 'Non autorisé : votre rôle sur ce document est limité' : MODES[k].desc, icon: MODES[k].icon, checked: () => state.mode === k, disabled: RANK[k] > RANK[cap], action: () => setMode(k),
     })), { anchor: btn, align: 'right' });
   });
 
@@ -722,12 +736,97 @@
     return Object.assign({}, r, { id });
   }
 
+  /**
+   * Quelqu'un d'autre (ou un autre appareil) a enregistré entre-temps : on fusionne par blocs avec sa version, puis on enregistre le
+   * résultat. Sans version commune connue (document rouvert après un redémarrage), on retombe sur la copie « (conflit) ».
+   */
+  async function mergeConflict(t, data, cl, r0) {
+    let r = r0;
+    for (let n = 0; n < 4 && r.conflict && r.remote && cl.base; n++) {
+      const f = await P.sync.fetchDoc(cl.id);
+      if (!f.ok) return f.missing ? r : f;
+      let remote;
+      try { remote = JSON.parse(f.row.body); } catch (_) { return r; }
+      const m = P.collab.mergeData(cl.base, data, remote);
+      if (!m) return r;                                           // trop de différences : copie « (conflit) »
+      r = await P.sync.put({ id: cl.id, rev: f.row.rev, title: m.data.title, preview: previewOf(m.data.html), body: JSON.stringify(m.data) });
+      if (r.ok) {
+        r.merged = { data: m.data };
+        if (m.conflicts) P.toast('Un même paragraphe a été modifié en même temps par deux personnes : les deux versions sont conservées l’une sous l’autre.', 9000);
+        return r;
+      }
+      if (!r.conflict) return r;
+    }
+    return r;
+  }
+
+  /** Applique à l'onglet actif une version complète (fusionnée ou venue d'ailleurs) sans déranger le curseur. */
+  function applyDoc(data) {
+    P.applyMeta(data, true);
+    P.collab.patchEditor(data.html, data.assets);
+    P.pruneCommentAnchors();
+    if (P.fixChecklists) P.fixChecklists();
+    P.refreshVars();
+    P.updateCounts();
+    const ti = $('#title');
+    if (document.activeElement !== ti) ti.value = state.title;
+    setPageless(state.pageless);
+    refreshChrome();
+    renderOutline();
+    const ae = document.activeElement;
+    if (!(ae && ae.closest && ae.closest('#sidebody'))) P.renderPanel();
+    if (P.updateTocs) P.updateTocs();
+  }
+
+  /** Le résultat d'une fusion devient le contenu de l'onglet ; ce que la personne a tapé pendant l'enregistrement est repris par-dessus. */
+  function applyMerged(t, snap, merged) {
+    if (t.id !== activeId) { t.pending = { row: { id: src(t).cloud.id, rev: 0, forced: true }, data: merged }; return; }
+    const cur = P.serialize();
+    const same = cur.html === snap.html && cur.title === snap.title && JSON.stringify(cur.comments) === JSON.stringify(snap.comments);
+    if (same) { applyDoc(merged); return; }
+    const m = P.collab.mergeData(P.collab.baseOf(snap), cur, merged);
+    applyDoc(m ? m.data : merged);
+  }
+
+  /** Document ouvert : si une version plus récente existe en ligne, on la reprend (fusionnée avec ce qui est en cours de frappe). */
+  let refreshing = false;
+  app.liveRefresh = async function () {
+    if (refreshing || !inDoc() || !state.cloud || saving.has(activeId) || !canCloud()) return;
+    const t = current(), cl = state.cloud;
+    refreshing = true;
+    try {
+      const m = await P.sync.docRev(cl.id);
+      if (!m || m.deleted || m.rev <= cl.rev) return;
+      const f = await P.sync.fetchDoc(cl.id);
+      if (!f.ok || f.row.rev <= cl.rev) return;
+      if (!inDoc() || current() !== t || state.cloud !== cl || saving.has(t.id)) return;       // les choses ont bougé pendant l'attente
+      let remote;
+      try { remote = JSON.parse(f.row.body); } catch (_) { return; }
+      const next = { id: cl.id, rev: f.row.rev, base: P.collab.baseOf(remote) };
+      if (!state.dirty) {
+        applyDoc(remote);
+        state.cloud = next;
+      } else if (cl.base) {
+        const m3 = P.collab.mergeData(cl.base, P.serialize(), remote);
+        if (!m3) return;                                          // trop de différences : réglé à l'enregistrement
+        applyDoc(m3.data);
+        state.cloud = next;
+        state.dirty = true;
+        if (m3.conflicts) P.toast('Un même paragraphe a été modifié en même temps par deux personnes : les deux versions sont conservées l’une sous l’autre.', 9000);
+      } else return;
+      refreshChrome();
+    } finally { refreshing = false; }
+  };
+  /** Ce que la collaboration doit savoir de l'onglet actif (null : rien à diffuser). */
+  app.collabInfo = () => (inDoc() && state.cloud && canCloud() && !state.password ? { tab: activeId, docId: state.cloud.id, role: roleOfDoc(state), mode: state.mode } : null);
+
   /** Enregistre un onglet dans le compte en ligne (création au premier envoi, puis mises à jour avec contrôle de révision). */
   async function cloudSave(t, o) {
     o = o || {};
     const live = () => src(t);
     if (!canCloud()) return { error: 'Connectez-vous pour enregistrer en ligne.' };
     if (live().password) return { error: 'Un document protégé par mot de passe ne peut pas être enregistré en ligne.' };
+    if (roleOfDoc(live()) === 'view') return { error: 'Ce document est en lecture seule pour vous.', readOnly: true };
     if (saving.has(t.id)) return { busy: true };
     saving.add(t.id);
     try {
@@ -736,10 +835,12 @@
       const cl = live().cloud || { id: newId(), rev: 0 };
       live().cloud = cl;
       let r = await P.sync.put({ id: cl.id, rev: cl.rev, title: data.title, preview: previewOf(data.html), body: JSON.stringify(data) });
+      if (r.conflict) r = await mergeConflict(t, data, cl, r);
       if (r.conflict) r = await resolveConflict(t, data, r.remote);
       const s = live();
       if (r.ok) {
-        s.cloud = { id: r.id || cl.id, rev: r.rev };
+        s.cloud = { id: r.id || cl.id, rev: r.rev, base: P.collab.baseOf(r.merged ? r.merged.data : data) };
+        if (r.merged) applyMerged(t, data, r.merged.data);
         if (o.convert) s.path = null;
         if (t.id !== activeId || rev === mine) s.dirty = false;
         lastPush.set(t.id, Date.now());
@@ -787,7 +888,7 @@
     const mode = cfg().get('openMode');
     return !!openTab(() => {
       P.loadData(data);
-      state.cloud = { id, rev: r.row.rev };
+      state.cloud = { id, rev: r.row.rev, base: P.collab.baseOf(data) };
       afterLoad({ path: null, mode });
     });
   }
@@ -806,24 +907,31 @@
     return true;
   };
 
+  /** Quitter un document partagé avec moi : il disparaît de « Partagés avec moi » (son propriétaire peut le repartager). */
+  app.leaveShared = async function (id) {
+    const meta = P.sync.doc(id);
+    const ok = await P.confirm('Quitter ce document ?', '« ' + ((meta && meta.title) || 'Sans titre') + ' » disparaîtra de « Partagés avec moi ». Son propriétaire pourra vous le partager de nouveau.', 'Quitter');
+    if (!ok) return false;
+    const r = await P.sync.leave(id);
+    if (r.error) { P.toast(r.error, 6000); return false; }
+    const t = tabs.find((x) => src(x).cloud && src(x).cloud.id === id);
+    if (t) { src(t).dirty = false; await closeTab(t.id); }
+    P.toast('Vous avez quitté le document.');
+    return true;
+  };
+
   /** Contenu venu d'un autre appareil appliqué à l'onglet actif (jamais s'il a des modifications locales). */
   function applyRemote(row, data) {
     if (!inDoc() || !state.cloud || state.cloud.id !== row.id || state.dirty) return;
-    const top = scroller.scrollTop;
-    P.resetSel();
-    P.loadData(data);
-    state.cloud = { id: row.id, rev: row.rev };
+    applyDoc(data);
+    state.cloud = { id: row.id, rev: row.forced ? state.cloud.rev : row.rev, base: P.collab.baseOf(data) };
     state.dirty = false;
-    $('#title').value = state.title;
-    setPageless(state.pageless);
     refreshChrome();
-    P.renderPanel();
-    renderOutline();
-    scroller.scrollTop = top;
-    P.toast('Document mis à jour depuis un autre appareil.');
+    if (!row.forced && !(P.collab && P.collab.people().length)) P.toast('Document mis à jour depuis un autre appareil.');
   }
 
   async function reloadFromCloud(t, rowRev) {
+    if (t.id === activeId) { app.liveRefresh(); return; }
     const mine = rev;
     const r = await P.sync.fetchDoc(src(t).cloud.id);
     if (!r.ok || r.row.rev <= src(t).cloud.rev) return;
@@ -853,7 +961,7 @@
     const now = Date.now();
     for (const t of tabs) {
       const s = src(t);
-      if (!s.dirty || s.password || saving.has(t.id)) continue;
+      if (!s.dirty || s.password || saving.has(t.id) || (s.cloud && roleOfDoc(s) === 'view')) continue;
       if (!(s.cloud || (s.touched && wantCloud(s)))) continue;
       if ((retryAt.get(t.id) || 0) > now) continue;
       const idle = t.id !== activeId || now - lastEdit > 1500 || now - (lastPush.get(t.id) || 0) > 20000;
@@ -872,6 +980,27 @@
       refreshChrome();
     }
   });
+
+  /** Partages : nouveau document partagé avec moi, changement de rôle, accès retiré. */
+  P.sync.onShares = ({ changes, lost }) => {
+    const tabOf = (id) => tabs.find((x) => src(x).cloud && src(x).cloud.id === id);
+    for (const c of changes) {
+      const meta = P.sync.doc(c.id);
+      const name = '« ' + ((meta && meta.title) || 'Sans titre') + ' »';
+      if (c.kind === 'new') { const who = meta && P.sync.person(meta.user_id); P.toast(name + ' a été partagé avec vous' + (who ? ' par ' + who.name : '') + '.', 6000); continue; }
+      P.toast('Votre rôle sur ' + name + ' est maintenant : ' + P.collab.ROLE[c.role] + '.', 7000);
+      const t = tabOf(c.id);
+      if (t && t.id === activeId) setMode(state.mode);
+    }
+    for (const x of lost) {
+      const t = tabOf(x.id);
+      if (!t) continue;
+      const s = src(t);
+      P.toast('Votre accès à « ' + (x.title || 'Sans titre') + ' » a été retiré.', 8000);
+      if (!s.dirty) closeTab(t.id);
+      else { s.cloud = null; repaint(t); }
+    }
+  };
 
   /** Déconnexion : le contenu des onglets appartient au compte, on les ferme (après avoir tenté d'enregistrer). */
   app.signOut = async function () {
@@ -1072,7 +1201,7 @@
       if (!dirty.length) {
         if (recoveryOn) { await native.recovery.clear(); recoveryOn = false; }
       } else {
-        await native.recovery.write(JSON.stringify(dirty.map((t) => Object.assign(P.serializeDoc(t.st, t.html), t.st.cloud ? { cloud: t.st.cloud } : {}))));
+        await native.recovery.write(JSON.stringify(dirty.map((t) => Object.assign(P.serializeDoc(t.st, t.html), t.st.cloud ? { cloud: { id: t.st.cloud.id, rev: t.st.cloud.rev } } : {}))));
         recoveryOn = true;
       }
       writtenRev = mine;
@@ -1106,7 +1235,7 @@
           P.loadData(data);
           afterLoad({ path: null, dirty: true });
           state.touched = true;
-          if (data.cloud && typeof data.cloud.id === 'string' && /^[0-9a-f-]{36}$/i.test(data.cloud.id)) state.cloud = { id: data.cloud.id, rev: Number(data.cloud.rev) || 0 };
+          if (data.cloud && typeof data.cloud.id === 'string' && /^[0-9a-f-]{36}$/i.test(data.cloud.id)) { state.cloud = { id: data.cloud.id, rev: Number(data.cloud.rev) || 0 }; setMode(state.mode); }
           refreshChrome();
         });
       }
