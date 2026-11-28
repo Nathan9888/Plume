@@ -27,6 +27,10 @@
     if (code === 'validation_failed' || /unable to validate email|invalid email/i.test(msg)) return 'Adresse courriel invalide.';
     if (/invalid api key|no api key/i.test(msg)) return 'La configuration du service en ligne est invalide (clé refusée). Mettez Plume à jour ou contactez son auteur.';
     if (code === 'user_banned') return 'Ce compte est suspendu.';
+    if (code === 'pgrst205' || code === 'pgrst202' || code === '42p01' || code === '42883' || /could not find the (table|function)|relation .* does not exist|function .* does not exist/i.test(msg)) {
+      return 'La base de données en ligne n’est pas encore préparée. Dans Supabase, ouvrez l’éditeur SQL, collez le contenu du fichier supabase/schema.sql et cliquez sur Exécuter (une seule fois), puis réessayez.';
+    }
+    if (code === '42501' || /permission denied/i.test(msg)) return 'Accès refusé par la base de données en ligne. Exécutez de nouveau le fichier supabase/schema.sql dans l’éditeur SQL de Supabase.';
     if (status === 401 || status === 403) return 'Session expirée : reconnectez-vous.';
     if (status >= 500) return 'Le service en ligne ne répond pas pour l’instant (erreur ' + status + '). Réessayez dans un moment.';
     return msg || 'Échec de la requête (' + status + ').';

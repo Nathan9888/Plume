@@ -46,6 +46,23 @@
     const ns = tri([[16, 4.6], [9.6, 12], [22.4, 12]]) + tri([[16, 27.4], [9.6, 20], [22.4, 20]]) + shape('M6.5 14.8 V17.2 a.5 .5 0 0 0 .5 .5 H25 a.5 .5 0 0 0 .5 -.5 V14.8 a.5 .5 0 0 0 -.5 -.5 H7 a.5 .5 0 0 0 -.5 .5 Z', 2.8);
     const move = stroke('M16 7 V25 M7 16 H25', 2.2) + tri([[16, 3.2], [12.2, 8.6], [19.8, 8.6]]) + tri([[16, 28.8], [12.2, 23.4], [19.8, 23.4]]) + tri([[3.2, 16], [8.6, 12.2], [8.6, 19.8]]) + tri([[28.8, 16], [23.4, 12.2], [23.4, 19.8]]);
 
+    // Mains ouverte et fermée (déplacer une image) : silhouette de la couleur choisie, intérieur contrasté
+    const hands = (pieces, creases) => {
+      const outline = pieces.map((p) => p.replace('/>', ` fill="${fill}" stroke="${fill}" stroke-width="3.2" stroke-linejoin="round"/>`)).join('');
+      const body = pieces.map((p) => p.replace('/>', ` fill="${line}"/>`)).join('');
+      return outline + body + `<path d="${creases}" fill="none" stroke="${fill}" stroke-width="1.1" stroke-linecap="round"/>`;
+    };
+    const grab = hands([
+      '<rect x="9.4" y="9.6" width="3.6" height="13" rx="1.8"/>', '<rect x="13" y="6.4" width="3.6" height="15" rx="1.8"/>',
+      '<rect x="16.6" y="6" width="3.6" height="15" rx="1.8"/>', '<rect x="20.2" y="8.4" width="3.6" height="13.5" rx="1.8"/>',
+      '<rect x="9.4" y="15" width="14.4" height="11.6" rx="5.2"/>', '<rect x="4.6" y="14.6" width="3.7" height="9" rx="1.85" transform="rotate(-32 6.4 19)"/>',
+    ], 'M13 16.5 V13 M16.6 16.5 V12.4 M20.2 16.5 V13.2');
+    const grabbing = hands([
+      '<rect x="8.6" y="12" width="3.8" height="7" rx="1.9"/>', '<rect x="12.2" y="10.6" width="3.8" height="8" rx="1.9"/>',
+      '<rect x="15.8" y="10.6" width="3.8" height="8" rx="1.9"/>', '<rect x="19.4" y="12" width="3.8" height="7" rx="1.9"/>',
+      '<rect x="8.6" y="15.2" width="14.6" height="11.2" rx="5.2"/>', '<rect x="6.4" y="17.4" width="8.6" height="3.7" rx="1.85" transform="rotate(14 10.7 19.2)"/>',
+    ], 'M12.2 16 V13.4 M15.8 16 V12.8 M19.4 16 V13.4');
+
     // Roue multicolore (attente) : six pétales en spirale
     const C = 16, R = 11.2, cols = ['#ffd60a', '#ff9f0a', '#ff453a', '#e05bd6', '#0a9cff', '#30d158'];
     const pt = (a, r) => [C + r * Math.cos(a), C + r * Math.sin(a)].map((v) => v.toFixed(2));
@@ -63,6 +80,8 @@
       text: { svg: ibeam, hot: [16, 16], label: 'Texte' },
       wait: { svg: wheel, hot: [16, 16], label: 'Attente' },
       move: { svg: move, hot: [16, 16], label: 'Déplacer' },
+      grab: { svg: grab, hot: [16, 16], label: 'Main ouverte' },
+      grabbing: { svg: grabbing, hot: [16, 16], label: 'Main fermée' },
       ew: { svg: ew, hot: [16, 16], label: 'Redimensionner ↔' },
       ns: { svg: ns, hot: [16, 16], label: 'Redimensionner ↕' },
       nwse: { svg: nwse, hot: [16, 16], label: 'Redimensionner ⤡' },
@@ -70,7 +89,7 @@
     };
   }
 
-  const FALLBACK = { default: 'auto', pointer: 'pointer', text: 'text', wait: 'wait', move: 'move', ew: 'ew-resize', ns: 'ns-resize', nwse: 'nwse-resize', nesw: 'nesw-resize' };
+  const FALLBACK = { default: 'auto', pointer: 'pointer', text: 'text', wait: 'wait', move: 'move', grab: 'grab', grabbing: 'grabbing', ew: 'ew-resize', ns: 'ns-resize', nwse: 'nwse-resize', nesw: 'nesw-resize' };
 
   function svgUrl(svg, size) {
     const doc = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 32 32">${svg}</svg>`;

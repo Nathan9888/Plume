@@ -27,17 +27,26 @@
   const ignored = new Set();
   const autoRep = new Map(Object.entries(store.get('plume.autoreplace', {})));
 
+  // Verdict par mot (casse comprise) : relire un document de plusieurs pages ne rappelle plus le moteur pour chaque mot déjà vu.
+  const verdicts = new Map();
+  let verdictKey = '';
   function isBad(word) {
     const k = word.toLowerCase();
     if (personal.has(k) || ignored.has(k)) return false;
-    let any = false;
+    const key = langs().join('+') + '|' + personal.size + '|' + ignored.size;
+    if (key !== verdictKey) { verdicts.clear(); verdictKey = key; }
+    let v = verdicts.get(word);
+    if (v !== undefined) return v;
+    let have = false, ok = false;
     for (const l of langs()) {
       const e = engine(l);
       if (!e) continue;
-      any = true;
-      if (e.spell(word)) return false;
+      have = true;
+      if (e.spell(word)) { ok = true; break; }
     }
-    return any;
+    v = have && !ok;
+    if (have) { if (verdicts.size > 20000) verdicts.clear(); verdicts.set(word, v); }
+    return v;
   }
 
   function suggest(word) {
@@ -90,12 +99,35 @@
     }
   }
 
+  /* Le soulignement n'est dessiné que près de la zone visible : le navigateur repeint chaque mot marqué à chaque frappe,
+     et des milliers de repères sur plusieurs pages rendaient la saisie lente. La liste complète (carte « Orthographe ») reste intacte. */
+  const REACH = 350, MAX_MARKS = 150;
+  let paintTimer = 0;
   function paint() {
+    clearTimeout(paintTimer); paintTimer = 0;
     if (!window.CSS || !CSS.highlights || typeof Highlight === 'undefined') return;
     if (!items.length) { CSS.highlights.delete('plume-spell'); return; }
-    const ranges = items.map((it) => { const r = new Range(); r.setStart(it.node, it.start); r.setEnd(it.node, it.end); return r; });
-    CSS.highlights.set('plume-spell', new Highlight(...ranges));
+    const sc = $('#scroller');
+    const box = (sc || document.documentElement).getBoundingClientRect();
+    const top = box.top - REACH, bottom = box.bottom + REACH;
+    const seen = new Map();
+    const ranges = [];
+    for (const it of items) {
+      const n = it.node;
+      if (!n.isConnected || it.end > n.nodeValue.length || n.nodeValue.slice(it.start, it.end) !== it.word) continue;   // texte modifié depuis l'analyse
+      const el = n.parentElement;
+      if (!el) continue;
+      let near = seen.get(el);
+      if (near === undefined) { const r = el.getBoundingClientRect(); near = r.bottom >= top && r.top <= bottom; seen.set(el, near); }
+      if (!near) continue;
+      if (ranges.length >= MAX_MARKS) break;
+      const r = new Range();
+      r.setStart(n, it.start); r.setEnd(n, it.end);
+      ranges.push(r);
+    }
+    if (ranges.length) CSS.highlights.set('plume-spell', new Highlight(...ranges)); else CSS.highlights.delete('plume-spell');
   }
+  const paintSoon = () => { if (!paintTimer && items.length) paintTimer = setTimeout(paint, 120); };
 
   function clearAll() { scanId++; items = []; paint(); hidePill(); refreshCard(); }
 
@@ -330,8 +362,8 @@
     if (e.ctrlKey && e.altKey && !e.shiftKey && (e.key === 'x' || e.key === 'X')) { e.preventDefault(); toggleCard(); return; }
     if (e.key === 'Escape') { if (cur) { hidePill(); } else if (!card.hidden && !document.querySelector('.menu, .overlay')) { closeCard(); } }
   });
-  window.addEventListener('resize', () => { hidePill(); });
-  $('#scroller') && $('#scroller').addEventListener('scroll', () => { if (cur) hidePill(); }, { passive: true });
+  window.addEventListener('resize', () => { hidePill(); paintSoon(); });
+  $('#scroller') && $('#scroller').addEventListener('scroll', () => { if (cur) hidePill(); paintSoon(); }, { passive: true });
 
   /* ---------- API ---------- */
   P.spell = {

@@ -1,7 +1,7 @@
 {
   "name": "plume",
   "productName": "Plume",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "description": "Traitement de texte local, simple et élégant",
   "main": "main.js",
   "author": "Plume",
@@ -18,9 +18,22 @@
   "build": {
     "appId": "local.plume.editor",
     "productName": "Plume",
-    "directories": { "output": "dist", "buildResources": "build" },
-    "files": ["main.js", "preload.js", "shared/**/*", "renderer/**/*", "build/icon.png", "package.json"],
-    "win": { "target": "nsis", "icon": "build/icon.ico" },
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "shared/**/*",
+      "renderer/**/*",
+      "build/icon.png",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
     "nsis": {
       "oneClick": false,
       "perMachine": false,
@@ -29,7 +42,12 @@
       "shortcutName": "Plume"
     },
     "fileAssociations": [
-      { "ext": "plume", "name": "Document Plume", "description": "Document Plume", "icon": "build/icon.ico" }
+      {
+        "ext": "plume",
+        "name": "Document Plume",
+        "description": "Document Plume",
+        "icon": "build/icon.ico"
+      }
     ]
   }
 }

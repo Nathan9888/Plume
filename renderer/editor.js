@@ -908,8 +908,19 @@
     P.markDirty();
   });
 
-  window.addEventListener('dragover', (e) => e.preventDefault());
+  /* Déplacer une image (ou du texte) dans le document avec la souris : le glisser-déposer natif du navigateur s'en charge, ce qui
+     donne le repère d'insertion et une seule étape pour Ctrl+Z. Le reste (fichier déposé depuis l'ordinateur) passe par le code ci-dessous. */
+  let innerDrag = false;
+  ed.addEventListener('dragstart', (e) => {
+    if (state.mode !== 'edit' || readOnly()) { e.preventDefault(); return; }       // lecture seule et suggestions : on ne déplace pas
+    innerDrag = true;
+    const t = e.target;
+    if (t && t.tagName === 'IMG' && e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+  });
+  ed.addEventListener('dragend', () => { innerDrag = false; });
+  window.addEventListener('dragover', (e) => { if (innerDrag && ed.contains(e.target)) return; e.preventDefault(); });
   window.addEventListener('drop', async (e) => {
+    if (innerDrag && ed.contains(e.target)) return;
     e.preventDefault();
     if (readOnly()) return;
     const file = Array.from((e.dataTransfer && e.dataTransfer.files) || []).find(okImage);

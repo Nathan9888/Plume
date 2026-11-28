@@ -1018,13 +1018,28 @@
   };
 
   /* ---------- Enregistrement ---------- */
+  /** L'enregistrement en ligne a échoué : propose d'enregistrer le document sur l'ordinateur à la place. */
+  async function offerLocalSave(r) {
+    const res = await P.modal({
+      title: 'Enregistrement en ligne impossible',
+      message: (r.error || 'Échec de l’enregistrement en ligne.') + '\n\nVoulez-vous enregistrer le document sur cet ordinateur à la place ?',
+      buttons: [{ id: 'no', label: 'Plus tard' }, { id: 'yes', label: 'Enregistrer sur l’ordinateur', primary: true }],
+    });
+    if (!res || res.button !== 'yes') return false;
+    if (state.cloud && state.cloud.rev === 0) state.cloud = null;     // jamais arrivé en ligne : ce sera un fichier local
+    if (state.cloud) return downloadCopy();
+    return save(true);
+  }
+
   async function save(saveAs) {
     if (!inDoc()) return false;
     if (saveAs && state.cloud) return downloadCopy();
     if (!saveAs && (state.cloud || wantCloud(state))) {
       P.snapshot(null, true);
       const r = await cloudSave(current(), { manual: true });
-      return !!(r && r.ok);
+      if (r && r.ok) return true;
+      if (r && !r.busy && !r.readOnly) return offerLocalSave(r);    // l'enregistrement en ligne a échoué : on ne laisse pas la personne sans solution
+      return false;
     }
     P.snapshot(null, true);
     const res = await native.save({
@@ -1192,8 +1207,10 @@
   /* ---------- Récupération automatique (tous les onglets modifiés) et versions automatiques ---------- */
   let writtenRev = 0;
   let recoveryOn = false;
+  let recoveryAt = 0;
   async function syncRecovery(force) {
     if (!force && rev === writtenRev) return;
+    if (!force && Date.now() - lastEdit < 1200 && Date.now() - recoveryAt < 30000) return;      // pas pendant la frappe (sauf si la dernière copie date de plus de 30 s)
     const mine = rev;
     try {
       captureActive();
@@ -1205,6 +1222,7 @@
         recoveryOn = true;
       }
       writtenRev = mine;
+      recoveryAt = Date.now();
     } catch (_) { /* ignoré : réessai au prochain passage */ }
   }
   setInterval(() => syncRecovery(false), 5000);

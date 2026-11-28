@@ -129,6 +129,9 @@ ouvre une pastille : la **suggestion** (un clic la remplace), **Ignorer**, **com
 « Toujours remplacer par … », « Ajouter au dictionnaire personnel », « Vérification de l'orthographe »).
 `Ctrl+Alt+X` (ou Outils → *Vérification de l'orthographe…*) ouvre une petite carte qui parcourt les erreurs une à une
 (« 1 sur 3 », suggestions, Ignorer, Ajouter au dictionnaire) ; sans erreur, elle affiche « Aucune suggestion à examiner. ».
+Pour que la saisie reste fluide dans les longs documents, le trait ondulé n'est dessiné que près de la zone visible (la carte, elle, parcourt tout le document).
+
+**Images et tableaux à la souris** — une image se **déplace en la faisant glisser** (repère d'insertion, un seul `Ctrl+Z` pour annuler ; pas en lecture seule ni en suggestion) ; ses poignées, celles du recadrage et les séparateurs de colonnes et de lignes d'un tableau prennent les **curseurs macOS** choisis dans Paramètres → Apparence (flèches de redimensionnement, main ouverte au survol d'une image), y compris pendant le glissement.
 Le moteur est un lecteur de dictionnaires Hunspell écrit en JavaScript (affixes, composés, suggestions par distance d'édition),
 validé contre `libhunspell` (99,9 % d'accord). Dictionnaires : français (Grammalecte, MPL 2.0) et anglais (SCOWL),
 dans `dictionaries/`, convertis en fichiers `renderer/dict-*.js` par `node tools/make-dicts.js`.

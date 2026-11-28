@@ -475,6 +475,7 @@
     return null;
   }
   function hoverResize(e) {
+    if (resize) return;                                      // pendant le glissement, le curseur de redimensionnement reste en place
     if (ro() || e.buttons) { ed.classList.remove('tbl-col-resize', 'tbl-row-resize'); return; }
     const g = edgeAt(e);
     ed.classList.toggle('tbl-col-resize', !!g && g.kind === 'col');
@@ -502,6 +503,7 @@
     const q = table.getBoundingClientRect();
     if (resize.kind === 'col') { guide.style.top = (q.top - pr.top + scroller.scrollTop) + 'px'; guide.style.height = q.height + 'px'; guide.style.width = '2px'; guide.style.left = (e.clientX - pr.left + scroller.scrollLeft) + 'px'; }
     else { guide.style.left = (q.left - pr.left + scroller.scrollLeft) + 'px'; guide.style.width = q.width + 'px'; guide.style.height = '2px'; guide.style.top = (e.clientY - pr.top + scroller.scrollTop) + 'px'; }
+    document.body.classList.add(resize.kind === 'col' ? 'tbl-dragging-col' : 'tbl-dragging-row');
     window.addEventListener('mousemove', onResize, true);
     return true;
   }
@@ -530,6 +532,8 @@
   function endResize() {
     if (!resize) return;
     window.removeEventListener('mousemove', onResize, true);
+    document.body.classList.remove('tbl-dragging-col', 'tbl-dragging-row');
+    ed.classList.remove('tbl-col-resize', 'tbl-row-resize');
     guide.hidden = true;
     if (resize.moved) P.markDirty();
     resize = null;

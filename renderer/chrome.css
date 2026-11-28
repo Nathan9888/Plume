@@ -174,8 +174,8 @@ option { background: var(--surface); color: var(--text); }
 
 /* ---------- Document : en-tête ---------- */
 /* En-tête et barre d'outils : verre dépoli posé sur la feuille (elle défile dessous, comme dans Pages) */
-#chrome { position: absolute; z-index: 25; left: 0; right: 0; top: 0; background: color-mix(in srgb, var(--frame) 78%, transparent);
-  -webkit-backdrop-filter: blur(28px) saturate(180%); backdrop-filter: blur(28px) saturate(180%); box-shadow: 0 .5px 0 var(--sep); }
+#chrome { position: absolute; z-index: 25; left: 0; right: 0; top: 0; background: color-mix(in srgb, var(--frame) 80%, transparent);
+  -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); box-shadow: 0 .5px 0 var(--sep); }
 #dochead { display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 12px 0 10px; background: transparent; }
 #doc-logo { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 8px; background: transparent; }
 #doc-logo:hover { background: var(--hover); }
@@ -261,7 +261,7 @@ body[data-mode="view"] #tb-tools button, body[data-mode="view"] #tb-tools select
 
 /* ---------- Plan (barre latérale) et panneau latéral ---------- */
 #outline { position: absolute; z-index: 15; left: 0; top: 0; bottom: 0; display: flex; flex-direction: column; width: 232px; padding-top: var(--chrome-h, 86px);
-  background: color-mix(in srgb, var(--sidebar) 80%, transparent); -webkit-backdrop-filter: blur(28px) saturate(180%); backdrop-filter: blur(28px) saturate(180%);
+  background: color-mix(in srgb, var(--sidebar) 84%, transparent); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
   border-right: .5px solid var(--sep); animation: slide-in-l .22s cubic-bezier(.2, .8, .2, 1); }
 .side-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 8px 4px 16px; }
 .side-head b { color: var(--muted); font-size: 11.5px; font-weight: 600; }
@@ -820,9 +820,11 @@ button.danger { color: var(--danger); }
 
 /* ---------- Tableaux ---------- */
 #page table[style*="table-layout"] td, #page table[style*="table-layout"] th { min-width: 0; overflow-wrap: anywhere; }
-#page.tbl-col-resize, #page.tbl-col-resize * { cursor: col-resize; }
-#page.tbl-row-resize, #page.tbl-row-resize * { cursor: row-resize; }
+#page.tbl-col-resize, #page.tbl-col-resize * { cursor: var(--cur-ew, col-resize) !important; }
+#page.tbl-row-resize, #page.tbl-row-resize * { cursor: var(--cur-ns, row-resize) !important; }
 #page.tbl-col-resize table, #page.tbl-row-resize table { user-select: none; }
+body.tbl-dragging-col, body.tbl-dragging-col * { cursor: var(--cur-ew, col-resize) !important; user-select: none !important; }
+body.tbl-dragging-row, body.tbl-dragging-row * { cursor: var(--cur-ns, row-resize) !important; user-select: none !important; }
 #scroller { position: relative; }
 #cellsel { position: absolute; z-index: 4; box-sizing: border-box; border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); pointer-events: none; border-radius: 2px; }
 #tbl-guide { position: absolute; z-index: 5; background: var(--accent); pointer-events: none; opacity: .8; }
@@ -865,18 +867,23 @@ button.danger { color: var(--danger); }
 #imgsel, #imgcrop { position: absolute; z-index: 4; box-sizing: border-box; pointer-events: none; }
 #imgsel { border: 2px solid var(--accent); }
 .ih, .ch { position: absolute; width: 10px; height: 10px; box-sizing: border-box; border: 2px solid var(--accent); border-radius: 50%; background: #fff; pointer-events: auto; }
-.ih-nw, .ch-nw { left: -6px; top: -6px; cursor: nwse-resize; } .ih-ne, .ch-ne { right: -6px; top: -6px; cursor: nesw-resize; }
-.ih-sw, .ch-sw { left: -6px; bottom: -6px; cursor: nesw-resize; } .ih-se, .ch-se { right: -6px; bottom: -6px; cursor: nwse-resize; }
-.ih-n, .ch-n { left: calc(50% - 5px); top: -6px; cursor: ns-resize; } .ih-s, .ch-s { left: calc(50% - 5px); bottom: -6px; cursor: ns-resize; }
-.ih-w, .ch-w { left: -6px; top: calc(50% - 5px); cursor: ew-resize; } .ih-e, .ch-e { right: -6px; top: calc(50% - 5px); cursor: ew-resize; }
-#imgcrop { border: 1.5px solid #fff; outline: 1px solid rgba(0, 0, 0, .55); box-shadow: 0 0 0 4000px rgba(0, 0, 0, .5); cursor: move; pointer-events: auto; }
+.ih-nw, .ch-nw { left: -6px; top: -6px; cursor: var(--cur-nwse, nwse-resize); } .ih-ne, .ch-ne { right: -6px; top: -6px; cursor: var(--cur-nesw, nesw-resize); }
+.ih-sw, .ch-sw { left: -6px; bottom: -6px; cursor: var(--cur-nesw, nesw-resize); } .ih-se, .ch-se { right: -6px; bottom: -6px; cursor: var(--cur-nwse, nwse-resize); }
+.ih-n, .ch-n { left: calc(50% - 5px); top: -6px; cursor: var(--cur-ns, ns-resize); } .ih-s, .ch-s { left: calc(50% - 5px); bottom: -6px; cursor: var(--cur-ns, ns-resize); }
+.ih-w, .ch-w { left: -6px; top: calc(50% - 5px); cursor: var(--cur-ew, ew-resize); } .ih-e, .ch-e { right: -6px; top: calc(50% - 5px); cursor: var(--cur-ew, ew-resize); }
+#imgcrop { border: 1.5px solid #fff; outline: 1px solid rgba(0, 0, 0, .55); box-shadow: 0 0 0 4000px rgba(0, 0, 0, .5); cursor: var(--cur-move, move); pointer-events: auto; }
 #imgcrop[hidden], #imgsel[hidden] { display: none; }
 .ch { border-color: #fff; background: var(--accent); }
 .crop-bar { position: absolute; right: 0; bottom: -40px; display: flex; gap: 6px; padding: 4px; border-radius: 10px; background: var(--glass); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); box-shadow: var(--shadow-pop); cursor: default; }
 .crop-bar button { display: grid; place-items: center; width: 28px; height: 26px; border: 0; border-radius: 6px; background: transparent; color: var(--text); }
 .crop-bar .crop-ok { background: var(--accent); color: #fff; }
 .crop-bar button:hover { filter: brightness(1.1); }
-#page img { cursor: default; }
+#page img { cursor: var(--cur-grab, default); }
+body[data-mode="view"] #page img, body[data-mode="suggest"] #page img { cursor: var(--cur-default, default); }
+body.img-sizing-ew, body.img-sizing-ew * { cursor: var(--cur-ew, ew-resize) !important; }
+body.img-sizing-ns, body.img-sizing-ns * { cursor: var(--cur-ns, ns-resize) !important; }
+body.img-sizing-nwse, body.img-sizing-nwse * { cursor: var(--cur-nwse, nwse-resize) !important; }
+body.img-sizing-nesw, body.img-sizing-nesw * { cursor: var(--cur-nesw, nesw-resize) !important; }
 @media print { #imgsel, #imgcrop { display: none !important; } }
 
 /* ---------- Partage et collaboration ---------- */

@@ -118,6 +118,8 @@
     const x0 = e.clientX, y0 = e.clientY;
     const corner = d.length === 2;
     busy = true;
+    const cur = d.length === 2 ? (d === 'nw' || d === 'se' ? 'nwse' : 'nesw') : (d === 'n' || d === 's' ? 'ns' : 'ew');
+    document.body.classList.add('img-sizing-' + cur);
     let last = s0;
     const move = (ev) => {
       let dx = ev.clientX - x0, dy = ev.clientY - y0;
@@ -139,6 +141,7 @@
       window.removeEventListener('mousemove', move, true);
       window.removeEventListener('mouseup', up, true);
       busy = false;
+      document.body.classList.remove('img-sizing-' + cur);
       if (css0 === null) target.removeAttribute('style'); else target.setAttribute('style', css0);
       if (last.w !== s0.w || last.h !== s0.h) replaceImg(target, (c) => { c.style.width = last.w + 'px'; c.style.height = last.h + 'px'; c.removeAttribute('width'); c.removeAttribute('height'); });
       else paint();

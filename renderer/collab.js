@@ -390,9 +390,11 @@
     try { await Y.presenceLeave(docId); } catch (_) { /* la ligne expire d'elle-même */ }
   }
 
+  let selTimer = 0;
   function selectionChanged() {
-    const c = readSelection();
-    if (c) localCursor = c;
+    // Seulement quand le document est partagé, et au plus une lecture par 150 ms : parcourir les blocs à chaque mouvement du curseur ralentit les longs documents.
+    if (selTimer || !(P.app && P.app.collabInfo && P.app.collabInfo())) return;
+    selTimer = setTimeout(() => { selTimer = 0; const c = readSelection(); if (c) localCursor = c; }, 150);
   }
   document.addEventListener('selectionchange', selectionChanged);
 
